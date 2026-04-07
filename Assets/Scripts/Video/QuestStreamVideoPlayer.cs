@@ -334,6 +334,10 @@ namespace Quest3VideoPlayer
         [SerializeField, Range(1, 8)] private int maxInFlightHardwareFrames = 2;
         private bool usingHardwareBufferFrames;
         private Texture externalHardwareTexture;
+        private bool resumeStreamAfterPause;
+        private bool applicationPauseState;
+        private bool applicationFocusState = true;
+        private Coroutine resumeStreamCoroutine;
         private bool useNativeHardwareBufferImporter;
         private IntPtr questVulkanStreamHandle = IntPtr.Zero;
         private IntPtr questVulkanRenderEventFunc = IntPtr.Zero;
@@ -458,13 +462,29 @@ namespace Quest3VideoPlayer
 
         private void OnDisable()
         {
+            resumeStreamAfterPause = false;
+            StopResumeStreamCoroutine();
             StopStream();
             RestoreSideBySideOriginalMaterials();
         }
         private void OnApplicationQuit()
         {
+            resumeStreamAfterPause = false;
+            StopResumeStreamCoroutine();
             StopStream();
             RestoreSideBySideOriginalMaterials();
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            applicationPauseState = pauseStatus;
+            HandleApplicationSuspendState($"OnApplicationPause({pauseStatus})", pauseStatus || !applicationFocusState);
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            applicationFocusState = hasFocus;
+            HandleApplicationSuspendState($"OnApplicationFocus({hasFocus})", applicationPauseState || !hasFocus);
         }
 
         public void ConfigureNetwork(string address, int primaryPort, int secondaryPort, string senderIp = "")
@@ -886,6 +906,7 @@ namespace Quest3VideoPlayer
         public void StopStream()
         {
             LogVerbose("StopStream requested.");
+            StopResumeStreamCoroutine();
             if (frameRoutine != null)
             {
                 StopCoroutine(frameRoutine);
@@ -919,6 +940,57 @@ namespace Quest3VideoPlayer
             ResetStreamClock();
             manualYuvInputModeOverride = int.MinValue;
             colorCalibrator?.OnStreamStopped("StopStream");
+        }
+
+        private void HandleApplicationSuspendState(string source, bool shouldSuspend)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (shouldSuspend)
+            {
+                if (decoder != null)
+                {
+                    resumeStreamAfterPause = true;
+                    Debug.Log($"[QuestStreamVideoPlayer] {source}: stopping AV1 hardware stream for app suspend.");
+                    StopStream();
+                }
+                return;
+            }
+
+            if (!resumeStreamAfterPause || decoder != null || !isActiveAndEnabled)
+            {
+                return;
+            }
+
+            Debug.Log($"[QuestStreamVideoPlayer] {source}: scheduling AV1 hardware stream resume after app resume.");
+            StopResumeStreamCoroutine();
+            resumeStreamCoroutine = StartCoroutine(ResumeStreamAfterPause());
+#endif
+        }
+
+        private IEnumerator ResumeStreamAfterPause()
+        {
+            yield return null;
+            yield return null;
+
+            resumeStreamCoroutine = null;
+            if (!resumeStreamAfterPause || decoder != null || !isActiveAndEnabled)
+            {
+                yield break;
+            }
+
+            resumeStreamAfterPause = false;
+            StartStream();
+        }
+
+        private void StopResumeStreamCoroutine()
+        {
+            if (resumeStreamCoroutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(resumeStreamCoroutine);
+            resumeStreamCoroutine = null;
         }
 
         private void FlushHardwareQueues()
@@ -1079,6 +1151,15 @@ namespace Quest3VideoPlayer
                 // ImageReader(maxImages=3) and eventually stalls decoder output.
                 ReleaseHardwareBundle(frameBundle);
                 return;
+            }
+
+            if (!useNativeHardwareBufferImporter && unityHardwareBuffer != null)
+            {
+                // Unity's imported AndroidHardwareBuffer wrapper owns the native buffer lifetime.
+                // Releasing the Java Image/HardwareBuffer bundle immediately keeps ImageReader
+                // from hitting maxImages under high AV1 decode rates.
+                ReleaseHardwareBundle(frameBundle);
+                frameBundle = null;
             }
 
             TrackInFlightHardwareResource(frameBundle, unityHardwareBuffer);

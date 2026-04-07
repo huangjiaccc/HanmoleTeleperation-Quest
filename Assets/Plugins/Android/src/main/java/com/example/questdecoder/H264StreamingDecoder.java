@@ -1525,6 +1525,10 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
             return receivedFragments == totalFragments;
         }
 
+        synchronized int getBufferedBytes() {
+            return totalBytes;
+        }
+
         synchronized byte[] assemble() {
             if (!isComplete()) {
                 return null;
@@ -1605,6 +1609,14 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
             return completedSplits >= totalSplits;
         }
 
+        synchronized int getBufferedBytes() {
+            int total = 0;
+            for (ReleaseSplitAssembler assembler : splits.values()) {
+                total += assembler.getBufferedBytes();
+            }
+            return total;
+        }
+
         synchronized List<byte[]> buildNalUnits() {
             List<byte[]> nalUnits = new ArrayList<>(splits.size());
             for (ReleaseSplitAssembler assembler : splits.values()) {
@@ -1658,9 +1670,7 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
         
         if (spsChanged || ppsChanged) {
             Log.i(TAG, "SPS/PPS changed, restarting decoder with new parameters");
-            stopDecoderOutputDrainer();
-            decoder.stop();
-            decoder.release();
+            releaseDecoderResourcesForRetry();
             startDecoder();
         }
     }
@@ -1668,6 +1678,10 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
     private void submitNalToDecoder(byte[] nalData) {
         byte[] dataWithStartCode = null;
         try {
+            MediaCodec codec = decoder;
+            if (codec == null) {
+                return;
+            }
             // 添加Annex-B起始码并确保4字节对齐
             int totalLength = START_CODE.length + nalData.length;
             int alignedLength = (totalLength + 3) & ~3; // 向上对齐到4字节边界
@@ -1685,9 +1699,9 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
                 dataWithStartCode[i] = 0;
             }
 
-            int inputBufferId = decoder.dequeueInputBuffer(10000);
+            int inputBufferId = codec.dequeueInputBuffer(10000);
             if (inputBufferId >= 0) {
-                ByteBuffer inputBuffer = decoder.getInputBuffer(inputBufferId);
+                ByteBuffer inputBuffer = codec.getInputBuffer(inputBufferId);
                 if (inputBuffer != null) {
                     // 确保输入数据对齐到4字节边界
                     if (dataWithStartCode.length % 4 != 0) {
@@ -1696,7 +1710,7 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
                     
                     inputBuffer.clear();
                     inputBuffer.put(dataWithStartCode);
-                    decoder.queueInputBuffer(
+                    codec.queueInputBuffer(
                         inputBufferId,
                         0,
                         dataWithStartCode.length,
@@ -1740,7 +1754,12 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
         while (running && !Thread.currentThread().isInterrupted()) {
             try {
-                int outputBufferId = decoder.dequeueOutputBuffer(bufferInfo, 1000);
+                MediaCodec codec = decoder;
+                if (codec == null) {
+                    break;
+                }
+
+                int outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 1000);
                 if (outputBufferId >= 0) {
                     // 检查解码器输出是否有效
                     // NOTE: For Surface output, BufferInfo.size is often 0 even for valid frames.
@@ -1749,7 +1768,19 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
                     boolean isEndOfStream = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
                     boolean shouldRender = !isCodecConfig && !isEndOfStream;
 
-                    decoder.releaseOutputBuffer(outputBufferId, shouldRender);
+                    if (shouldRender
+                            && decoderUsingHardwareBuffers
+                            && hardwareFrameQueue.size() >= MAX_HARDWARE_FRAME_QUEUE) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastHardwareFrameDropLogMs > 1000) {
+                            lastHardwareFrameDropLogMs = now;
+                            Log.w(TAG, "HardwareBuffer queue saturated. Dropping decoder output buffer without rendering.");
+                        }
+                        codec.releaseOutputBuffer(outputBufferId, false);
+                        continue;
+                    }
+
+                    codec.releaseOutputBuffer(outputBufferId, shouldRender);
 
                     if (shouldRender) {
                         frameCounter++;
@@ -1759,7 +1790,7 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
                         logDebug("Skipped non-renderable output buffer - flags: " + bufferInfo.flags + ", size: " + bufferInfo.size);
                     }
                 } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    MediaFormat newFormat = decoder.getOutputFormat();
+                    MediaFormat newFormat = codec.getOutputFormat();
                     Log.i(TAG, "Decoder output format changed: " + newFormat);
                     maybeSendDecoderColorInfo(newFormat, "INFO_OUTPUT_FORMAT_CHANGED");
                     // 记录新的输出格式信息

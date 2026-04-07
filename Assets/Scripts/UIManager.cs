@@ -2377,7 +2377,7 @@ public class UIManager : MonoBehaviour
             {
                 vrrttMs = 0;
             }
-            _debugvrrtt.text = vrrttMs.ToString() + "ms";
+            _debugvrrtt.text = vrrttMs.ToString();
         }
 
         if (_debugwifirtt != null)

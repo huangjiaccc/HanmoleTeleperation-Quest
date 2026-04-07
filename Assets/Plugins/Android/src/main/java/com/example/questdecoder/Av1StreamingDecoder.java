@@ -58,6 +58,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private static final int HARDWARE_IMAGE_READER_DEPTH = 3;
     private static final int FENCE_WAIT_TIMEOUT_MS = 10;
     private static final int FENCE_RESULT_WAIT_FAILED = -2;
+    private static final long BYTE_ARRAY_POOL_TRIM_INTERVAL_MS = 250;
     private static final int AV1_OBU_TYPE_SEQUENCE_HEADER = 1;
     private static final int AV1_OBU_TYPE_FRAME_HEADER = 3;
     private static final int AV1_OBU_TYPE_FRAME = 6;
@@ -202,6 +203,8 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private final java.util.concurrent.atomic.AtomicLong lastImageTimestampMs = new java.util.concurrent.atomic.AtomicLong(0);
     private long lastNoFrameLogMs = 0;
     private long lastUnexpectedCpuFallbackLogMs = 0;
+    private long lastByteArrayPoolTrimLogMs = 0;
+    private long lastByteArrayPoolTrimMs = 0;
     private static final int MAX_DEBUG_FRAME_DUMPS = 5;
     private final AtomicInteger dumpedFrames = new AtomicInteger(0);
     private File frameDumpDirectory;
@@ -507,8 +510,62 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         }
 
         dropped.release();
+        maybeTrimByteArrayPool(reason);
         Log.w(TAG, reason + " Dropped oldest queued HardwareBuffer frame to recover.");
         return true;
+    }
+
+    private void maybeTrimByteArrayPool(String reason) {
+        long pooledBytes = ByteArrayPool.getPooledBytes();
+        if (pooledBytes <= 0) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastByteArrayPoolTrimMs < BYTE_ARRAY_POOL_TRIM_INTERVAL_MS) {
+            return;
+        }
+
+        lastByteArrayPoolTrimMs = now;
+        ByteArrayPool.clearAll();
+        if (now - lastByteArrayPoolTrimLogMs > 1000) {
+            lastByteArrayPoolTrimLogMs = now;
+            Log.w(TAG, reason + " Cleared pooled byte arrays (" + (pooledBytes / 1024) + " KB cached).");
+        }
+    }
+
+    private void clearPendingAv1Assemblers(String reason) {
+        for (ReleaseFrameAssembler assembler : releaseFrameAssemblers.values()) {
+            if (assembler != null) {
+                assembler.release();
+            }
+        }
+        releaseFrameAssemblers.clear();
+
+        for (ReleaseSplitAssembler assembler : splitAssemblers.values()) {
+            if (assembler != null) {
+                assembler.releaseFragments();
+            }
+        }
+        splitAssemblers.clear();
+
+        synchronized (frameWindowLock) {
+            activeFrameOrder.clear();
+        }
+
+        pendingHeaders.clear();
+        Log.w(TAG, reason + " Cleared pending AV1 frame assemblers.");
+    }
+
+    private void handleReceiveLoopOutOfMemory(int bindPort, OutOfMemoryError error) {
+        long pooledBytes = ByteArrayPool.getPooledBytes();
+        maybeTrimByteArrayPool("AV1 receive loop OOM on port " + bindPort + ".");
+        clearPendingAv1Assemblers("AV1 receive loop OOM on port " + bindPort + ".");
+        Log.e(TAG, "Recovered from AV1 receive-loop memory pressure on port "
+                + bindPort
+                + " (pooledBytesBefore=" + pooledBytes
+                + ", hardwareQueue=" + hardwareFrameQueue.size()
+                + ")", error);
     }
 
     public synchronized void submitHeartbeatPayload(byte[] payload, int length) {
@@ -826,6 +883,16 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
             }
         }
         releaseFrameAssemblers.clear();
+        for (ReleaseSplitAssembler assembler : splitAssemblers.values()) {
+            if (assembler != null) {
+                assembler.releaseFragments();
+            }
+        }
+        splitAssemblers.clear();
+        synchronized (frameWindowLock) {
+            activeFrameOrder.clear();
+        }
+        ByteArrayPool.clearAll();
         lastImageTimestampMs.set(0);
         lastNoFrameLogMs = 0;
         resetCpuCalibrationStateForStream();
@@ -1166,6 +1233,18 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
                         consecutiveTimeouts = 0;
                     }
                 }
+            } catch (OutOfMemoryError error) {
+                if (running) {
+                    handleReceiveLoopOutOfMemory(bindPort, error);
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException ignored) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    continue;
+                }
+                break;
             } catch (Exception e) {
                 if (running) {
                     Log.e(TAG, "Error in receive loop on port " + bindPort, e);
@@ -1861,6 +1940,9 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
                 }
             } else {
                 noInputBufferCount++;
+                if (hardwareFrameQueue.size() >= MAX_HARDWARE_FRAME_QUEUE) {
+                    maybeTrimByteArrayPool("AV1 decoder input starvation.");
+                }
                 long now = System.currentTimeMillis();
                 if (now - lastNoInputBufferLogMs > 1000) {
                     lastNoInputBufferLogMs = now;
