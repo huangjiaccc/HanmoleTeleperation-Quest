@@ -1,0 +1,10 @@
+{
+    "defaultServerIp": "120.197.140.102",
+    "defaultVideoPort": 4000,
+    "defaultDataPort": 4001,
+    "defaultAudioPort": 4002,
+    "defaultClientVideoPort": 5000,
+    "defaultClientDataPort": 5001,
+    "defaultClientAudioPort": 5002,
+    "islan": true
+}

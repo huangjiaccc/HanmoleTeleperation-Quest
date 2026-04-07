@@ -1,0 +1,28 @@
+# Keep all classes in com.example.questdecoder package
+-keep class com.example.questdecoder.** { *; }
+
+# Keep all native methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Keep VulkanHardwareBufferBridge specifically
+-keep,allowobfuscation class com.example.questdecoder.VulkanHardwareBufferBridge {
+    public *;
+    static <methods>;
+    native <methods>;
+}
+
+# Keep HardwareBufferNativeBridge
+-keep class com.example.questdecoder.HardwareBufferNativeBridge {
+    *;
+}
+
+# Keep all decoder classes
+-keep class com.example.questdecoder.Av1StreamingDecoder { *; }
+-keep class com.example.questdecoder.H264StreamingDecoder { *; }
+-keep class com.example.questdecoder.HevcStreamingDecoder { *; }
+-keep class com.example.questdecoder.ByteArrayPool { *; }
+
+# Dontwarn for missing classes
+-dontwarn com.example.questdecoder.**

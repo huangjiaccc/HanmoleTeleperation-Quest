@@ -1,0 +1,2 @@
+-keep class com.example.questdecoder.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }

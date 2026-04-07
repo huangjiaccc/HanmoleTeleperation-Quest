@@ -1,0 +1,2105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="zong_zuang">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.0094907 0.0010372 -0.023952"
+        rpy="0 0 0" />
+      <mass
+        value="3.3841" />
+      <inertia
+        ixx="0.027005"
+        ixy="1.1729E-05"
+        ixz="0.00040697"
+        iyy="0.02713"
+        iyz="5.7164E-05"
+        izz="0.048504" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="wheel_front_left">
+    <inertial>
+      <origin
+        xyz="0.00036542 0.092546 -8.8457E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.68938" />
+      <inertia
+        ixx="0.00082989"
+        ixy="2.0336E-06"
+        ixz="-6.363E-09"
+        iyy="0.0013443"
+        iyz="6.5847E-09"
+        izz="0.00082986" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_front_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_front_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_wheel_front_left"
+    type="continuous">
+    <origin
+      xyz="0.18017 0.043587 -0.107"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel_front_left" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+  </joint>
+  <link
+    name="wheel_front_right">
+    <inertial>
+      <origin
+        xyz="-0.00036563 -0.092546 -1.4331E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.68938" />
+      <inertia
+        ixx="0.00082989"
+        ixy="2.0299E-06"
+        ixz="-3.2094E-09"
+        iyy="0.0013443"
+        iyz="-1.0659E-08"
+        izz="0.00082985" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_front_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_front_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_wheel_front_right"
+    type="continuous">
+    <origin
+      xyz="0.17982 -0.0456 -0.107"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel_front_right" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+  </joint>
+  <link
+    name="wheel_rear_left">
+    <inertial>
+      <origin
+        xyz="0.00036513 0.092546 -6.5629E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.68938" />
+      <inertia
+        ixx="0.0008299"
+        ixy="2.0402E-06"
+        ixz="-5.5539E-09"
+        iyy="0.0013443"
+        iyz="1.4118E-09"
+        izz="0.00082985" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_rear_left.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_rear_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_wheel_rear_left"
+    type="continuous">
+    <origin
+      xyz="-0.17982 0.045 -0.107"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel_rear_left" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+  </joint>
+  <link
+    name="wheel_rear_right">
+    <inertial>
+      <origin
+        xyz="-0.00036199 -0.092546 1.4112E-06"
+        rpy="0 0 0" />
+      <mass
+        value="0.68938" />
+      <inertia
+        ixx="0.00082987"
+        ixy="2.0098E-06"
+        ixz="1.8036E-08"
+        iyy="0.0013443"
+        iyz="-1.9367E-08"
+        izz="0.00082988" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_rear_right.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/wheel_rear_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_wheel_rear_right"
+    type="continuous">
+    <origin
+      xyz="-0.18017 -0.044187 -0.107"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="wheel_rear_right" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+  </joint>
+  <link
+    name="ankle">
+    <inertial>
+      <origin
+        xyz="5.0207E-05 0.0033591 0.17658"
+        rpy="0 0 0" />
+      <mass
+        value="0.83309" />
+      <inertia
+        ixx="0.018047"
+        ixy="4.1517E-05"
+        ixz="-1.1215E-05"
+        iyy="0.016655"
+        iyz="-9.4404E-05"
+        izz="0.0023155" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/ankle.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/ankle.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_ankle"
+    type="revolute">
+    <origin
+      xyz="0 -0.0006 0.1144"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="ankle" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="knee">
+    <inertial>
+      <origin
+        xyz="-9.7708E-05 -0.032401 0.18689"
+        rpy="0 0 0" />
+      <mass
+        value="0.80993" />
+      <inertia
+        ixx="0.012855"
+        ixy="3.7374E-06"
+        ixz="-1.8407E-06"
+        iyy="0.013859"
+        iyz="7.2373E-09"
+        izz="0.0011667" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/knee.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.20392 0.20392 0.20392 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/knee.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_knee"
+    type="revolute">
+    <origin
+      xyz="0 0 0.3495"
+      rpy="0 0 0" />
+    <parent
+      link="ankle" />
+    <child
+      link="knee" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="waist_pitch">
+    <inertial>
+      <origin
+        xyz="0.00032904 -0.00021958 0.0086699"
+        rpy="0 0 0" />
+      <mass
+        value="0.20046" />
+      <inertia
+        ixx="0.00078713"
+        ixy="-3.5008E-07"
+        ixz="2.8772E-06"
+        iyy="0.00046335"
+        iyz="-6.1391E-06"
+        izz="0.00046124" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/waist_pitch.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/waist_pitch.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_waist_pitch"
+    type="revolute">
+    <origin
+      xyz="0.00015 0 0.3705"
+      rpy="0 0 0" />
+    <parent
+      link="knee" />
+    <child
+      link="waist_pitch" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="waist_yaw">
+    <inertial>
+      <origin
+        xyz="-0.00039643 -5.0784E-05 0.19775"
+        rpy="0 0 0" />
+      <mass
+        value="1.4276" />
+      <inertia
+        ixx="0.021614"
+        ixy="-4.0703E-05"
+        ixz="0.00040643"
+        iyy="0.01143"
+        iyz="-5.2936E-06"
+        izz="0.012695" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/waist_yaw.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/waist_yaw.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_waist_yaw"
+    type="revolute">
+    <origin
+      xyz="-0.00014686 0.00080058 0.06773"
+      rpy="0 0 0" />
+    <parent
+      link="waist_pitch" />
+    <child
+      link="waist_yaw" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="neck_yaw">
+    <inertial>
+      <origin
+        xyz="3.7085E-05 -0.00032789 0.04892"
+        rpy="0 0 0" />
+      <mass
+        value="0.13752" />
+      <inertia
+        ixx="5.4803E-05"
+        ixy="3.1336E-08"
+        ixz="-1.2227E-07"
+        iyy="6.1375E-05"
+        iyz="-4.2913E-07"
+        izz="4.8207E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/neck_yaw.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/neck_yaw.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_neck_yaw"
+    type="revolute">
+    <origin
+      xyz="-0.00070002 0 0.3886"
+      rpy="0 0 0" />
+    <parent
+      link="waist_yaw" />
+    <child
+      link="neck_yaw" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="neck_pitch">
+    <inertial>
+      <origin
+        xyz="0.01334 -0.0008721 0.070786"
+        rpy="0 0 0" />
+      <mass
+        value="0.47681" />
+      <inertia
+        ixx="0.0020981"
+        ixy="-1.2131E-06"
+        ixz="-0.00010155"
+        iyy="0.0013213"
+        iyz="-2.0384E-06"
+        izz="0.001278" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/neck_pitch.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/neck_pitch.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_neck_pitch"
+    type="revolute">
+    <origin
+      xyz="0 0 0.055"
+      rpy="0 0 0" />
+    <parent
+      link="neck_yaw" />
+    <child
+      link="neck_pitch" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_shoulder_inner">
+    <inertial>
+      <origin
+        xyz="-0.0042283 0.057351 0.00087069"
+        rpy="0 0 0" />
+      <mass
+        value="0.10627" />
+      <inertia
+        ixx="0.00022953"
+        ixy="-2.5481E-05"
+        ixz="-1.8151E-07"
+        iyy="0.00015375"
+        iyz="-4.2209E-06"
+        izz="0.00015313" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_shoulder_inner.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_shoulder_inner.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_shoulder_inner"
+    type="fixed">
+    <origin
+      xyz="0.00055975 0.1426 0.27507"
+      rpy="0 0 0" />
+    <parent
+      link="waist_yaw" />
+    <child
+      link="left_shoulder_inner" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="left_shoulder_outer">
+    <inertial>
+      <origin
+        xyz="-0.01382 0.0011561 -0.063364"
+        rpy="0 0 0" />
+      <mass
+        value="0.13387" />
+      <inertia
+        ixx="0.00037445"
+        ixy="1.2963E-07"
+        ixz="-2.0686E-05"
+        iyy="0.00028958"
+        iyz="-5.3718E-06"
+        izz="0.00012872" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_shoulder_outer.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_shoulder_outer.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_shoulder_outer"
+    type="revolute">
+    <origin
+      xyz="0.032818 0.080872 0"
+      rpy="0 0 0" />
+    <parent
+      link="left_shoulder_inner" />
+    <child
+      link="left_shoulder_outer" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_upper_arm">
+    <inertial>
+      <origin
+        xyz="-0.029268 -0.003281 -0.11157"
+        rpy="0 0 0" />
+      <mass
+        value="0.09494" />
+      <inertia
+        ixx="0.0005927"
+        ixy="2.5094E-06"
+        ixz="-1.8923E-06"
+        iyy="0.00053057"
+        iyz="-3.2181E-05"
+        izz="8.6665E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_upper_arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_upper_arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_upper_arm"
+    type="fixed">
+    <origin
+      xyz="-0.02325 9.1264E-05 -0.14025"
+      rpy="0 0 0" />
+    <parent
+      link="left_shoulder_outer" />
+    <child
+      link="left_upper_arm" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+  <link
+    name="left_elbow">
+    <inertial>
+      <origin
+        xyz="-5.929E-05 -0.015476 -0.064684"
+        rpy="0 0 0" />
+      <mass
+        value="0.31056" />
+      <inertia
+        ixx="0.00038407"
+        ixy="4.5688E-07"
+        ixz="-1.1809E-07"
+        iyy="0.00049896"
+        iyz="-3.4781E-05"
+        izz="0.00024532" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_elbow.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_elbow.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_elbow"
+    type="revolute">
+    <origin
+      xyz="0.00011482 0.02925 -0.205"
+      rpy="0 0 0" />
+    <parent
+      link="left_upper_arm" />
+    <child
+      link="left_elbow" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_forearm">
+    <inertial>
+      <origin
+        xyz="0.020967 -8.2304E-05 -0.020252"
+        rpy="0 0 0" />
+      <mass
+        value="0.020224" />
+      <inertia
+        ixx="5.1919E-06"
+        ixy="-4.2053E-09"
+        ixz="4.5565E-09"
+        iyy="4.1205E-06"
+        iyz="-1.7886E-11"
+        izz="4.2644E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_forearm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_forearm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_forearm"
+    type="revolute">
+    <origin
+      xyz="-0.000105 -0.02675 -0.11175"
+      rpy="0 0 0" />
+    <parent
+      link="left_elbow" />
+    <child
+      link="left_forearm" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_wrist_upper">
+    <inertial>
+      <origin
+        xyz="-0.034068 0.0018298 -0.029528"
+        rpy="0 0 0" />
+      <mass
+        value="0.24687" />
+      <inertia
+        ixx="0.00010171"
+        ixy="1.2783E-07"
+        ixz="1.9026E-07"
+        iyy="0.00010182"
+        iyz="2.842E-07"
+        izz="0.00010193" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_wrist_upper.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_wrist_upper.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_wrist_upper"
+    type="revolute">
+    <origin
+      xyz="0.029 -0.00011383 -0.04"
+      rpy="0 0 0" />
+    <parent
+      link="left_forearm" />
+    <child
+      link="left_wrist_upper" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_wrist_lower">
+    <inertial>
+      <origin
+        xyz="0.0052643 -0.025104 -0.085584"
+        rpy="0 0 0" />
+      <mass
+        value="0.19434" />
+      <inertia
+        ixx="0.00013349"
+        ixy="-4.7102E-07"
+        ixz="1.3101E-05"
+        iyy="0.00017015"
+        iyz="2.5118E-06"
+        izz="7.4965E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_wrist_lower.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_wrist_lower.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_wrist_lower"
+    type="revolute">
+    <origin
+      xyz="-0.035731 0.03049 -0.0592"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_upper" />
+    <child
+      link="left_wrist_lower" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_thumb_proximal">
+    <inertial>
+      <origin
+        xyz="0.0080176 -3.1497E-05 -0.012125"
+        rpy="0 0 0" />
+      <mass
+        value="0.012595" />
+      <inertia
+        ixx="1.1726E-06"
+        ixy="-1.2651E-10"
+        ixz="1.314E-07"
+        iyy="1.1415E-06"
+        iyz="-5.1356E-10"
+        izz="1.355E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_thumb_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_thumb_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_thumb_proximal"
+    type="revolute">
+    <origin
+      xyz="0.035117 -0.029138 -0.071334"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_lower" />
+    <child
+      link="left_thumb_proximal" />
+    <axis
+      xyz="0.049808 -0.00019551 -0.99876" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_thumb_distal">
+    <inertial>
+      <origin
+        xyz="0.015867 0.00048256 -0.013693"
+        rpy="0 0 0" />
+      <mass
+        value="0.011386" />
+      <inertia
+        ixx="1.3832E-06"
+        ixy="-8.2439E-08"
+        ixz="9.6203E-07"
+        iyy="2.2578E-06"
+        iyz="7.6139E-08"
+        izz="1.4791E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_thumb_distal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_thumb_distal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_thumb_distal"
+    type="revolute">
+    <origin
+      xyz="0.019351 -7.5961E-05 -0.018975"
+      rpy="0 0 0" />
+    <parent
+      link="left_thumb_proximal" />
+    <child
+      link="left_thumb_distal" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_index_proximal">
+    <inertial>
+      <origin
+        xyz="0.0014625 -0.00076794 -0.02942"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1297E-06"
+        ixy="6.9704E-09"
+        ixz="1.4362E-07"
+        iyy="3.0924E-06"
+        iyz="-1.4314E-07"
+        izz="2.4427E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_index_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_index_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_index_proximal"
+    type="revolute">
+    <origin
+      xyz="0.03601 -0.028142 -0.13487"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_lower" />
+    <child
+      link="left_index_proximal" />
+    <axis
+      xyz="-0.99875 0.0039204 -0.049808" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_middle_proximal">
+    <inertial>
+      <origin
+        xyz="0.0014625 -0.00076794 -0.02942"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1297E-06"
+        ixy="6.9704E-09"
+        ixz="1.4362E-07"
+        iyy="3.0924E-06"
+        iyz="-1.4314E-07"
+        izz="2.4427E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_middle_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_middle_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_middle_proximal"
+    type="revolute">
+    <origin
+      xyz="0.021377 -0.028084 -0.14261"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_lower" />
+    <child
+      link="left_middle_proximal" />
+    <axis
+      xyz="-0.99875 0.0039204 -0.049808" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_ring_proximal">
+    <inertial>
+      <origin
+        xyz="0.0014625 -0.00076794 -0.02942"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1297E-06"
+        ixy="6.9704E-09"
+        ixz="1.4362E-07"
+        iyy="3.0924E-06"
+        iyz="-1.4314E-07"
+        izz="2.4427E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_ring_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_ring_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_ring_proximal"
+    type="revolute">
+    <origin
+      xyz="0.0049753 -0.02802 -0.13842"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_lower" />
+    <child
+      link="left_ring_proximal" />
+    <axis
+      xyz="0.99875 -0.0039204 0.049808" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="left_pinky_proximal">
+    <inertial>
+      <origin
+        xyz="0.0014625 -0.00076794 -0.02942"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1297E-06"
+        ixy="6.9704E-09"
+        ixz="1.4362E-07"
+        iyy="3.0924E-06"
+        iyz="-1.4314E-07"
+        izz="2.4427E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_pinky_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/left_pinky_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_left_pinky_proximal"
+    type="revolute">
+    <origin
+      xyz="-0.014267 -0.027944 -0.13237"
+      rpy="0 0 0" />
+    <parent
+      link="left_wrist_lower" />
+    <child
+      link="left_pinky_proximal" />
+    <axis
+      xyz="0.99875 -0.0039204 0.049808" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_shoulder_inner">
+    <inertial>
+      <origin
+        xyz="-0.037916 0.026343 0.00096074"
+        rpy="0 0 0" />
+      <mass
+        value="0.10626" />
+      <inertia
+        ixx="0.00022993"
+        ixy="2.4883E-05"
+        ixz="-1.4916E-07"
+        iyy="0.00015335"
+        iyz="4.2201E-06"
+        izz="0.00015312" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_shoulder_inner.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_shoulder_inner.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_shoulder_inner"
+    type="revolute">
+    <origin
+      xyz="0.031622 -0.22373 0.27507"
+      rpy="0 0 0" />
+    <parent
+      link="waist_yaw" />
+    <child
+      link="right_shoulder_inner" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_shoulder_outer">
+    <inertial>
+      <origin
+        xyz="-0.013825 -0.0010475 -0.063368"
+        rpy="0 0 0" />
+      <mass
+        value="0.13388" />
+      <inertia
+        ixx="0.0003745"
+        ixy="-8.0593E-07"
+        ixz="-2.0647E-05"
+        iyy="0.00028965"
+        iyz="5.5265E-06"
+        izz="0.00012872" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_shoulder_outer.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_shoulder_outer.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_shoulder_outer"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="right_shoulder_inner" />
+    <child
+      link="right_shoulder_outer" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_upper_arm">
+    <inertial>
+      <origin
+        xyz="-0.029235 0.0035106 -0.11157"
+        rpy="0 0 0" />
+      <mass
+        value="0.094933" />
+      <inertia
+        ixx="0.00059267"
+        ixy="-2.989E-06"
+        ixz="-1.6244E-06"
+        iyy="0.00053063"
+        iyz="3.2187E-05"
+        izz="8.6661E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_upper_arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_upper_arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_upper_arm"
+    type="revolute">
+    <origin
+      xyz="-0.02325 9.1264E-05 -0.14025"
+      rpy="0 0 0" />
+    <parent
+      link="right_shoulder_outer" />
+    <child
+      link="right_upper_arm" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_elbow">
+    <inertial>
+      <origin
+        xyz="8.0014E-05 0.020926 -0.065929"
+        rpy="0 0 0" />
+      <mass
+        value="0.25283" />
+      <inertia
+        ixx="0.00027252"
+        ixy="4.344E-07"
+        ixz="5.9082E-08"
+        iyy="0.00038169"
+        iyz="1.9758E-05"
+        izz="0.00021451" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_elbow.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_elbow.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_elbow"
+    type="revolute">
+    <origin
+      xyz="-0.00011482 -0.02925 -0.205"
+      rpy="0 0 0" />
+    <parent
+      link="right_upper_arm" />
+    <child
+      link="right_elbow" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_forearm">
+    <inertial>
+      <origin
+        xyz="0.020967 -8.2304E-05 -0.020252"
+        rpy="0 0 0" />
+      <mass
+        value="0.020224" />
+      <inertia
+        ixx="5.1919E-06"
+        ixy="-4.2053E-09"
+        ixz="4.5565E-09"
+        iyy="4.1205E-06"
+        iyz="-1.7886E-11"
+        izz="4.2644E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_forearm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_forearm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_forearm"
+    type="revolute">
+    <origin
+      xyz="0.000105 0.02675 -0.11175"
+      rpy="0 0 0" />
+    <parent
+      link="right_elbow" />
+    <child
+      link="right_forearm" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_wrist_upper">
+    <inertial>
+      <origin
+        xyz="-0.032762 -0.002965 -0.029639"
+        rpy="0 0 0" />
+      <mass
+        value="0.26765" />
+      <inertia
+        ixx="0.00012333"
+        ixy="-3.3178E-06"
+        ixz="-5.5095E-06"
+        iyy="0.00012354"
+        iyz="-5.3039E-06"
+        izz="0.0001139" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_wrist_upper.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_wrist_upper.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_wrist_upper"
+    type="revolute">
+    <origin
+      xyz="0.029 -0.00011383 -0.04"
+      rpy="0 0 0" />
+    <parent
+      link="right_forearm" />
+    <child
+      link="right_wrist_upper" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_wrist_lower">
+    <inertial>
+      <origin
+        xyz="0.0011899 0.024592 -0.085745"
+        rpy="0 0 0" />
+      <mass
+        value="0.19434" />
+      <inertia
+        ixx="0.00013465"
+        ixy="-3.4715E-07"
+        ixz="1.0124E-05"
+        iyy="0.00017015"
+        iyz="2.365E-06"
+        izz="7.3808E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_wrist_lower.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_wrist_lower.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_wrist_lower"
+    type="revolute">
+    <origin
+      xyz="-0.035969 -0.030209 -0.0592"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_upper" />
+    <child
+      link="right_wrist_lower" />
+    <axis
+      xyz="0.0039253 0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_thumb_proximal">
+    <inertial>
+      <origin
+        xyz="0.0074037 -2.9087E-05 -0.01251"
+        rpy="0 0 0" />
+      <mass
+        value="0.012595" />
+      <inertia
+        ixx="1.1862E-06"
+        ixy="-1.7949E-10"
+        ixz="1.3982E-07"
+        iyy="1.1415E-06"
+        iyz="-5.4642E-10"
+        izz="1.3415E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_thumb_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_thumb_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_thumb_proximal"
+    type="revolute">
+    <origin
+      xyz="0.031741 0.027032 -0.073"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_lower" />
+    <child
+      link="right_thumb_proximal" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_thumb_distal">
+    <inertial>
+      <origin
+        xyz="0.016115 -0.0006081 -0.013396"
+        rpy="0 0 0" />
+      <mass
+        value="0.011386" />
+      <inertia
+        ixx="1.1652E-06"
+        ixy="9.724E-08"
+        ixz="9.2482E-07"
+        iyy="2.2564E-06"
+        iyz="-7.5182E-08"
+        izz="1.6986E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_thumb_distal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_thumb_distal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_thumb_distal"
+    type="revolute">
+    <origin
+      xyz="0.018382 -7.2157E-05 -0.019916"
+      rpy="0 0 0" />
+    <parent
+      link="right_thumb_proximal" />
+    <child
+      link="right_thumb_distal" />
+    <axis
+      xyz="-0.0039253 -0.99999 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_index_proximal">
+    <inertial>
+      <origin
+        xyz="9.1786E-06 0.0019188 -0.029456"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1368E-06"
+        ixy="-1.6792E-10"
+        ixz="6.3214E-10"
+        iyy="3.0925E-06"
+        iyz="1.4275E-07"
+        izz="2.3708E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_index_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_index_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_index_proximal"
+    type="revolute">
+    <origin
+      xyz="0.029455 0.024885 -0.1365"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_lower" />
+    <child
+      link="right_index_proximal" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_middle_proximal">
+    <inertial>
+      <origin
+        xyz="9.1786E-06 0.0019188 -0.029456"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1368E-06"
+        ixy="-1.6792E-10"
+        ixz="6.3214E-10"
+        iyy="3.0925E-06"
+        iyz="1.4275E-07"
+        izz="2.3708E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_middle_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_middle_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_middle_proximal"
+    type="revolute">
+    <origin
+      xyz="0.014455 0.024943 -0.1435"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_lower" />
+    <child
+      link="right_middle_proximal" />
+    <axis
+      xyz="-0.99999 0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_ring_proximal">
+    <inertial>
+      <origin
+        xyz="9.1786E-06 0.0019188 -0.029456"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1368E-06"
+        ixy="-1.6792E-10"
+        ixz="6.3214E-10"
+        iyy="3.0925E-06"
+        iyz="1.4275E-07"
+        izz="2.3708E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_ring_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_ring_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_ring_proximal"
+    type="revolute">
+    <origin
+      xyz="-0.0017173 0.025007 -0.1385"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_lower" />
+    <child
+      link="right_ring_proximal" />
+    <axis
+      xyz="0.99999 -0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="right_pinky_proximal">
+    <inertial>
+      <origin
+        xyz="9.1786E-06 0.0019188 -0.029456"
+        rpy="0 0 0" />
+      <mass
+        value="0.0093522" />
+      <inertia
+        ixx="3.1368E-06"
+        ixy="-1.6792E-10"
+        ixz="6.3214E-10"
+        iyy="3.0925E-06"
+        iyz="1.4275E-07"
+        izz="2.3708E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_pinky_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://zong_zuang/meshes/right_pinky_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint_right_pinky_proximal"
+    type="revolute">
+    <origin
+      xyz="-0.020634 0.025081 -0.1315"
+      rpy="0 0 0" />
+    <parent
+      link="right_wrist_lower" />
+    <child
+      link="right_pinky_proximal" />
+    <axis
+      xyz="0.99999 -0.0039253 0" />
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+  </joint>
+</robot>

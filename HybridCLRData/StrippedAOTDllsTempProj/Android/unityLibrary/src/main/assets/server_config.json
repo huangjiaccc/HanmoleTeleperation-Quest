@@ -1,0 +1,9 @@
+{
+    "defaultServerIp": "192.168.50.192",
+    "defaultVideoPort": 4000,
+    "defaultDataPort": 4001,
+    "defaultAudioPort": 4002,
+    "defaultClientVideoPort": 5000,
+    "defaultClientDataPort": 5001,
+    "defaultClientAudioPort": 5002
+}

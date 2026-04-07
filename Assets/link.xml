@@ -1,0 +1,10 @@
+<linker>
+  <assembly fullname="UnityEngine.AndroidModule">
+    <type fullname="UnityEngine.Android.AndroidHardwareBuffer" preserve="all" />
+    <type fullname="UnityEngine.AndroidHardwareBuffer" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.CoreModule">
+    <type fullname="UnityEngine.Android.AndroidHardwareBuffer" preserve="all" />
+    <type fullname="UnityEngine.AndroidHardwareBuffer" preserve="all" />
+  </assembly>
+</linker>

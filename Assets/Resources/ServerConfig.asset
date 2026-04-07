@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a13af411ae341e04a8b056d52812f5d4, type: 3}
+  m_Name: ServerConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ServerConfigSO
+  defaultServerIp: 192.168.50.192
+  defaultVideoPort: 4000
+  defaultDataPort: 4001
+  defaultAudioPort: 4002
+  defaultClientVideoPort: 5000
+  defaultClientDataPort: 5001
+  defaultClientAudioPort: 5002

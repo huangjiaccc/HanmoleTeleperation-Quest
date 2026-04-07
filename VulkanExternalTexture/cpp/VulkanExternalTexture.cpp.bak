@@ -1,0 +1,435 @@
+#define VK_USE_PLATFORM_ANDROID_KHR
+#include <android/hardware_buffer.h>
+#include <android/log.h>
+#include <vulkan/vulkan.h>
+
+#include <cstring>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+#include "IUnityInterface.h"
+#include "IUnityGraphics.h"
+#include "IUnityGraphicsVulkan.h"
+
+#define LOG_TAG "QuestVulkanExt"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+#ifndef UNITY_INTERFACE_EXPORT
+#define UNITY_INTERFACE_EXPORT
+#endif
+
+namespace
+{
+    IUnityInterfaces* g_unityInterfaces = nullptr;
+    IUnityGraphics* g_graphics = nullptr;
+    IUnityGraphicsVulkan* g_graphicsVulkan = nullptr;
+    UnityVulkanInstance g_vulkanInstance = {};
+    bool g_vulkanReady = false;
+
+    std::mutex g_textureMutex;
+
+    PFN_vkGetDeviceProcAddr g_vkGetDeviceProcAddr = nullptr;
+    PFN_vkGetPhysicalDeviceMemoryProperties g_vkGetPhysicalDeviceMemoryProperties = nullptr;
+    PFN_vkCreateImage g_vkCreateImage = nullptr;
+    PFN_vkDestroyImage g_vkDestroyImage = nullptr;
+    PFN_vkAllocateMemory g_vkAllocateMemory = nullptr;
+    PFN_vkFreeMemory g_vkFreeMemory = nullptr;
+    PFN_vkBindImageMemory g_vkBindImageMemory = nullptr;
+    PFN_vkCreateImageView g_vkCreateImageView = nullptr;
+    PFN_vkDestroyImageView g_vkDestroyImageView = nullptr;
+    PFN_vkGetAndroidHardwareBufferPropertiesANDROID g_vkGetAndroidHardwareBufferPropertiesANDROID = nullptr;
+
+    struct ExternalTexture
+    {
+        int width = 0;
+        int height = 0;
+        AHardwareBuffer* buffer = nullptr;
+        UnityVulkanImage unityImage{};
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        VkImageView imageView = VK_NULL_HANDLE;
+    };
+
+    void DestroyNativeImage(ExternalTexture& texture);
+
+    bool IsVulkanRenderer()
+    {
+        return g_graphics && g_graphics->GetRenderer() == kUnityGfxRendererVulkan;
+    }
+
+    void LoadVulkanFunctions()
+    {
+        if (!g_graphicsVulkan || !g_vkGetDeviceProcAddr)
+        {
+            return;
+        }
+
+        auto loadDevice = [&](const char* name) -> PFN_vkVoidFunction {
+            return g_vkGetDeviceProcAddr(g_vulkanInstance.device, name);
+        };
+
+        g_vkCreateImage = reinterpret_cast<PFN_vkCreateImage>(loadDevice("vkCreateImage"));
+        g_vkDestroyImage = reinterpret_cast<PFN_vkDestroyImage>(loadDevice("vkDestroyImage"));
+        g_vkAllocateMemory = reinterpret_cast<PFN_vkAllocateMemory>(loadDevice("vkAllocateMemory"));
+        g_vkFreeMemory = reinterpret_cast<PFN_vkFreeMemory>(loadDevice("vkFreeMemory"));
+        g_vkBindImageMemory = reinterpret_cast<PFN_vkBindImageMemory>(loadDevice("vkBindImageMemory"));
+        g_vkCreateImageView = reinterpret_cast<PFN_vkCreateImageView>(loadDevice("vkCreateImageView"));
+        g_vkDestroyImageView = reinterpret_cast<PFN_vkDestroyImageView>(loadDevice("vkDestroyImageView"));
+        g_vkGetAndroidHardwareBufferPropertiesANDROID =
+            reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
+                loadDevice("vkGetAndroidHardwareBufferPropertiesANDROID"));
+    }
+
+    void UNITY_INTERFACE_API OnGraphicsDeviceEvent(UnityGfxDeviceEventType eventType)
+    {
+        if (eventType == kUnityGfxDeviceEventInitialize)
+        {
+            if (!IsVulkanRenderer())
+            {
+                LOGE("QuestVulkanExt requires Vulkan renderer.");
+                return;
+            }
+
+            g_graphicsVulkan = g_unityInterfaces->Get<IUnityGraphicsVulkan>();
+            g_vulkanInstance = g_graphicsVulkan->Instance();
+
+            auto getInstanceProcAddr = g_vulkanInstance.getInstanceProcAddr;
+            g_vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+                getInstanceProcAddr(g_vulkanInstance.instance, "vkGetDeviceProcAddr"));
+            g_vkGetPhysicalDeviceMemoryProperties =
+                reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(
+                    getInstanceProcAddr(g_vulkanInstance.instance, "vkGetPhysicalDeviceMemoryProperties"));
+
+            LoadVulkanFunctions();
+            g_vulkanReady = true;
+            LOGI("QuestVulkanExt initialized (device=%p)", g_vulkanInstance.device);
+        }
+        else if (eventType == kUnityGfxDeviceEventShutdown)
+        {
+            std::scoped_lock<std::mutex> lock(g_textureMutex);
+            g_vulkanReady = false;
+            g_graphicsVulkan = nullptr;
+            g_vkGetDeviceProcAddr = nullptr;
+            g_vkGetPhysicalDeviceMemoryProperties = nullptr;
+            g_vkCreateImage = nullptr;
+            g_vkDestroyImage = nullptr;
+            g_vkAllocateMemory = nullptr;
+            g_vkFreeMemory = nullptr;
+            g_vkBindImageMemory = nullptr;
+            g_vkCreateImageView = nullptr;
+            g_vkDestroyImageView = nullptr;
+            g_vkGetAndroidHardwareBufferPropertiesANDROID = nullptr;
+            g_vulkanInstance = {};
+        }
+    }
+
+    uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties)
+    {
+        VkPhysicalDeviceMemoryProperties memProperties{};
+        if (g_vkGetPhysicalDeviceMemoryProperties)
+        {
+            g_vkGetPhysicalDeviceMemoryProperties(g_vulkanInstance.physicalDevice, &memProperties);
+        }
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i)
+        {
+            if ((memoryTypeBits & (1u << i)) &&
+                (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    bool CreateNativeImage(ExternalTexture& texture)
+    {
+        if (!g_graphicsVulkan ||
+            !g_vkCreateImage ||
+            !g_vkAllocateMemory ||
+            !g_vkBindImageMemory ||
+            !g_vkCreateImageView ||
+            !g_vkGetAndroidHardwareBufferPropertiesANDROID)
+        {
+            LOGE("Vulkan function table incomplete – did Unity initialize Vulkan?");
+            return false;
+        }
+
+        AHardwareBuffer_Desc desc{};
+        desc.width = texture.width;
+        desc.height = texture.height;
+        desc.layers = 1;
+        desc.format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
+        desc.usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
+                     AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT |
+                     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+
+        if (AHardwareBuffer_allocate(&desc, &texture.buffer) != 0)
+        {
+            LOGE("Failed to allocate AHardwareBuffer");
+            return false;
+        }
+
+        VkAndroidHardwareBufferPropertiesANDROID bufferProps{
+            VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
+        VkAndroidHardwareBufferFormatPropertiesANDROID formatProps{
+            VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+        bufferProps.pNext = &formatProps;
+
+        if (g_vkGetAndroidHardwareBufferPropertiesANDROID(
+                g_vulkanInstance.device, texture.buffer, &bufferProps) != VK_SUCCESS)
+        {
+            LOGE("vkGetAndroidHardwareBufferPropertiesANDROID failed");
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        if (formatProps.format == VK_FORMAT_UNDEFINED)
+        {
+            LOGE("HardwareBuffer reported undefined format.");
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        if ((formatProps.formatFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) == 0)
+        {
+            LOGE("HardwareBuffer format does not support sampled images.");
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        VkExternalMemoryImageCreateInfo externalCreateInfo{
+            VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+        externalCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+
+        VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.pNext = &externalCreateInfo;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {static_cast<uint32_t>(texture.width),
+                            static_cast<uint32_t>(texture.height), 1};
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = formatProps.format == VK_FORMAT_UNDEFINED
+                               ? VK_FORMAT_R8G8B8A8_UNORM
+                               : formatProps.format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VkImage image = VK_NULL_HANDLE;
+        if (g_vkCreateImage(g_vulkanInstance.device, &imageInfo, nullptr, &image) != VK_SUCCESS)
+        {
+            LOGE("vkCreateImage failed");
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        VkImportAndroidHardwareBufferInfoANDROID importInfo{
+            VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID};
+        importInfo.buffer = texture.buffer;
+
+        VkMemoryDedicatedAllocateInfo memoryDedicatedInfo{
+            VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+        memoryDedicatedInfo.image = image;
+
+        VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        allocInfo.pNext = &importInfo;
+        importInfo.pNext = &memoryDedicatedInfo;
+        allocInfo.memoryTypeIndex = FindMemoryType(bufferProps.memoryTypeBits, 0);
+        allocInfo.allocationSize = bufferProps.allocationSize;
+
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        if (g_vkAllocateMemory(g_vulkanInstance.device, &allocInfo, nullptr, &memory) != VK_SUCCESS)
+        {
+            LOGE("vkAllocateMemory failed");
+            g_vkDestroyImage(g_vulkanInstance.device, image, nullptr);
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        if (g_vkBindImageMemory(g_vulkanInstance.device, image, memory, 0) != VK_SUCCESS)
+        {
+            LOGE("vkBindImageMemory failed");
+            g_vkDestroyImage(g_vulkanInstance.device, image, nullptr);
+            g_vkFreeMemory(g_vulkanInstance.device, memory, nullptr);
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        viewInfo.image = image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = imageInfo.format;
+        viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+        viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+        viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+        viewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView = VK_NULL_HANDLE;
+        if (g_vkCreateImageView(g_vulkanInstance.device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
+        {
+            LOGE("vkCreateImageView failed");
+            g_vkDestroyImage(g_vulkanInstance.device, image, nullptr);
+            g_vkFreeMemory(g_vulkanInstance.device, memory, nullptr);
+            DestroyNativeImage(texture);
+            return false;
+        }
+
+        texture.memory = memory;
+        texture.imageView = imageView;
+        texture.unityImage.memory.memory = memory;
+        texture.unityImage.memory.offset = 0;
+        texture.unityImage.memory.size = bufferProps.allocationSize;
+        texture.unityImage.image = image;
+        texture.unityImage.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        texture.unityImage.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        texture.unityImage.usage = imageInfo.usage;
+        texture.unityImage.format = imageInfo.format;
+        texture.unityImage.extent = imageInfo.extent;
+        texture.unityImage.tiling = imageInfo.tiling;
+        texture.unityImage.type = imageInfo.imageType;
+        texture.unityImage.samples = imageInfo.samples;
+        texture.unityImage.layers = 1;
+        texture.unityImage.mipCount = 1;
+        texture.unityImage.reserved[0] = imageView;
+
+        return true;
+    }
+
+    void DestroyNativeImage(ExternalTexture& texture)
+    {
+        if (texture.imageView != VK_NULL_HANDLE && g_vkDestroyImageView)
+        {
+            g_vkDestroyImageView(g_vulkanInstance.device, texture.imageView, nullptr);
+            texture.imageView = VK_NULL_HANDLE;
+        }
+
+        if (texture.unityImage.image != VK_NULL_HANDLE && g_vkDestroyImage)
+        {
+            g_vkDestroyImage(g_vulkanInstance.device, texture.unityImage.image, nullptr);
+            texture.unityImage.image = VK_NULL_HANDLE;
+        }
+
+        if (texture.memory != VK_NULL_HANDLE && g_vkFreeMemory)
+        {
+            g_vkFreeMemory(g_vulkanInstance.device, texture.memory, nullptr);
+            texture.memory = VK_NULL_HANDLE;
+        }
+
+        if (texture.buffer)
+        {
+            AHardwareBuffer_release(texture.buffer);
+            texture.buffer = nullptr;
+        }
+    }
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginLoad(IUnityInterfaces* interfaces)
+{
+    g_unityInterfaces = interfaces;
+    g_graphics = interfaces->Get<IUnityGraphics>();
+    g_graphics->RegisterDeviceEventCallback(OnGraphicsDeviceEvent);
+    OnGraphicsDeviceEvent(kUnityGfxDeviceEventInitialize);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API UnityPluginUnload()
+{
+    if (g_graphics)
+    {
+        g_graphics->UnregisterDeviceEventCallback(OnGraphicsDeviceEvent);
+    }
+}
+
+extern "C" intptr_t UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_CreateTestTexture(int width, int height)
+{
+    if (!g_vulkanReady || !IsVulkanRenderer())
+    {
+        LOGE("QuestVulkan_CreateTestTexture called before Vulkan is ready");
+        return 0;
+    }
+
+    auto texture = std::make_unique<ExternalTexture>();
+    texture->width = width;
+    texture->height = height;
+
+    if (!CreateNativeImage(*texture))
+    {
+        DestroyNativeImage(*texture);
+        return 0;
+    }
+
+    std::scoped_lock<std::mutex> lock(g_textureMutex);
+    return reinterpret_cast<intptr_t>(texture.release());
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_DestroyTexture(intptr_t handle)
+{
+    auto texture = reinterpret_cast<ExternalTexture*>(handle);
+    if (!texture)
+    {
+        return;
+    }
+
+    std::scoped_lock<std::mutex> lock(g_textureMutex);
+    DestroyNativeImage(*texture);
+    delete texture;
+}
+
+extern "C" intptr_t UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_GetUnityImage(intptr_t handle)
+{
+    auto texture = reinterpret_cast<ExternalTexture*>(handle);
+    if (!texture || !g_vulkanReady)
+    {
+        return 0;
+    }
+    return reinterpret_cast<intptr_t>(&texture->unityImage);
+}
+
+extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_UpdateTestTexture(
+    intptr_t handle, float r, float g, float b, float a)
+{
+    auto texture = reinterpret_cast<ExternalTexture*>(handle);
+    if (!texture || !texture->buffer || !g_vulkanReady)
+    {
+        return;
+    }
+
+    uint8_t* data = nullptr;
+    if (AHardwareBuffer_lock(texture->buffer,
+                             AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
+                             -1, nullptr, reinterpret_cast<void**>(&data)) != 0)
+    {
+        return;
+    }
+
+    AHardwareBuffer_Desc desc{};
+    AHardwareBuffer_describe(texture->buffer, &desc);
+    const int rowStride = static_cast<int>(desc.stride) * 4;
+
+    uint8_t color[4] = {
+        static_cast<uint8_t>(r * 255.0f),
+        static_cast<uint8_t>(g * 255.0f),
+        static_cast<uint8_t>(b * 255.0f),
+        static_cast<uint8_t>(a * 255.0f),
+    };
+
+    for (uint32_t y = 0; y < desc.height; ++y)
+    {
+        uint8_t* row = data + y * rowStride;
+        for (uint32_t x = 0; x < desc.width; ++x)
+        {
+            std::memcpy(row + x * 4, color, 4);
+        }
+    }
+
+    AHardwareBuffer_unlock(texture->buffer, nullptr);
+}
