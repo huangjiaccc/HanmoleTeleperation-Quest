@@ -264,17 +264,6 @@ public class DataManager : MonoBehaviour
             message.data.robot_mode != robotStateMessage.data.robot_mode || message.data.hand_mode != robotStateMessage.data.hand_mode)
         {
             OVRInputController.instance.TriggerHapticFeedback();
-            if(message.data.video_mode == (int)VideoMode.PERSPECTIVE) 
-            {
-                UIManager.Instance.SetVideoPanel(false);
-                GestureAndControllerInputModeManager._instance.SetPassthroughEnabled(true);
-            }
-            else 
-            {
-                UIManager.Instance.SetVideoPanel(true);
-                GestureAndControllerInputModeManager._instance.SetPassthroughEnabled(false);
-            }
-
         }
 
 

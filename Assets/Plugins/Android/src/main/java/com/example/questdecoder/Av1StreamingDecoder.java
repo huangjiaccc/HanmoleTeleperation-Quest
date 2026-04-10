@@ -59,6 +59,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private static final int FENCE_WAIT_TIMEOUT_MS = 10;
     private static final int FENCE_RESULT_WAIT_FAILED = -2;
     private static final long BYTE_ARRAY_POOL_TRIM_INTERVAL_MS = 250;
+    private static final int AV1_SYNC_FRAME_INTERVAL = 30;
     private static final int AV1_OBU_TYPE_SEQUENCE_HEADER = 1;
     private static final int AV1_OBU_TYPE_FRAME_HEADER = 3;
     private static final int AV1_OBU_TYPE_FRAME = 6;
@@ -93,7 +94,9 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private final int udpRemotePort;
     private volatile InetSocketAddress configuredRemoteEndpoint;
 
-    private static final int MAX_IN_FLIGHT_FRAMES = 3;
+    // Allow a bit more in-flight AV1 reassembly headroom so small packet reordering
+    // bursts do not immediately force a sync wait on a 60 fps realtime stream.
+    private static final int MAX_IN_FLIGHT_FRAMES = 8;
     private static final long FRAME_TIMEOUT_MS = 4000;
     private final ConcurrentLinkedQueue<FrameBundle> frameQueue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<HardwareBufferFrame> hardwareFrameQueue = new ConcurrentLinkedQueue<>();
@@ -223,6 +226,10 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private volatile int latestAv1FormatHeaderBytes = 0;
     private volatile int latestAv1FormatHeaderFrameId = -1;
     private volatile int av1FormatHeaderVersion = 0;
+    private volatile int lastAcceptedAv1FrameId = -1;
+    private volatile boolean waitingForAv1SyncFrame = false;
+    private volatile int waitingForAv1SyncFrameId = -1;
+    private volatile long lastAv1SyncLogMs = 0;
 
     // Expose the last color info we handed off to native so Unity can persist/reuse calibration across runs.
     // Return -1 until a value has been observed/sent.
@@ -557,6 +564,48 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         Log.w(TAG, reason + " Cleared pending AV1 frame assemblers.");
     }
 
+    private void clearDecodedOutputQueues(String reason) {
+        FrameBundle pendingBundle;
+        while ((pendingBundle = frameQueue.poll()) != null) {
+            pendingBundle.release();
+        }
+
+        HardwareBufferFrame pendingHardware;
+        while ((pendingHardware = hardwareFrameQueue.poll()) != null) {
+            pendingHardware.release();
+        }
+
+        pendingHeaders.clear();
+        Log.w(TAG, reason + " Cleared queued decoded AV1 output.");
+    }
+
+    private boolean isCadenceSyncFrame(int frameId) {
+        return frameId > 0 && ((frameId - 1) % AV1_SYNC_FRAME_INTERVAL) == 0;
+    }
+
+    private boolean isLikelyAv1SyncFrame(int frameId, Av1ObuScanResult scan) {
+        if (scan != null && scan.sequenceHeaderObu != null && scan.sequenceHeaderObu.length > 0) {
+            return true;
+        }
+        return isCadenceSyncFrame(frameId);
+    }
+
+    private void enterAv1SyncWait(String reason, int triggerFrameId) {
+        final int baseFrameId = Math.max(1, triggerFrameId);
+        final int nextSyncFrameId = ((baseFrameId - 1) / AV1_SYNC_FRAME_INTERVAL + 1) * AV1_SYNC_FRAME_INTERVAL + 1;
+
+        waitingForAv1SyncFrame = true;
+        waitingForAv1SyncFrameId = nextSyncFrameId;
+        clearPendingAv1Assemblers(reason);
+        clearDecodedOutputQueues(reason);
+
+        long now = System.currentTimeMillis();
+        if (now - lastAv1SyncLogMs > 250) {
+            lastAv1SyncLogMs = now;
+            Log.w(TAG, reason + " Waiting for next AV1 sync frame >= " + nextSyncFrameId);
+        }
+    }
+
     private void handleReceiveLoopOutOfMemory(int bindPort, OutOfMemoryError error) {
         long pooledBytes = ByteArrayPool.getPooledBytes();
         maybeTrimByteArrayPool("AV1 receive loop OOM on port " + bindPort + ".");
@@ -828,9 +877,6 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         startDecoder();
         startUdpReceivers();
         // 启动心跳发送（如果配置了远程端点）
-        if (configuredRemoteEndpoint != null) {
-            startHeartbeatSender();
-        }
     }
 
 
@@ -1145,6 +1191,10 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
             yuvToRgbaConvertCount = 0;
             yuvToRgbaConvertNsTotal = 0;
             yuvToRgbaConvertNsMax = 0;
+            lastAcceptedAv1FrameId = -1;
+            waitingForAv1SyncFrame = false;
+            waitingForAv1SyncFrameId = -1;
+            lastAv1SyncLogMs = 0;
             lastStatsTime = System.currentTimeMillis();
             lastStatsPacketsReceived = packetsReceived;
             lastStatsBytesReceived = bytesReceived;
@@ -1282,6 +1332,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         byte[] payload = ByteArrayPool.rent(header.fragmentSize);
         System.arraycopy(data, RELEASE_PACKET_HEADER_SIZE, payload, 0, header.fragmentSize);
 
+        final boolean[] createdNewFrame = {false};
         ReleaseFrameAssembler frameAssembler = releaseFrameAssemblers.compute(header.frameId, (id, existing) -> {
             if (existing == null || !existing.isCompatible(header)) {
                 if (existing != null) {
@@ -1295,6 +1346,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
                 );
                 created.updateMetadata(header);
                 registerFrameWindow(id, created);
+                createdNewFrame[0] = true;
                 return created;
             }
             existing.updateMetadata(header);
@@ -1304,6 +1356,10 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         if (frameAssembler == null) {
             ByteArrayPool.give(payload);
             return;
+        }
+
+        if (createdNewFrame[0]) {
+            framesReceived++;
         }
 
         final long splitKey = makeSplitKey(header.frameId, header.splitId);
@@ -1374,6 +1430,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
             }
             dropFrameFromWindow(frameId);
             logDebug("Dropping stale AV1 frame " + frameId);
+            enterAv1SyncWait("Stale AV1 frame dropped: " + frameId + ".", frameId);
         }
     }
 
@@ -1399,13 +1456,41 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
             frameData.length
         ));
 
+        final int frameId = effectiveHeader.frameId;
+        final Av1ObuScanResult scan = scanAv1Obus(frameData);
+        final boolean isSyncFrame = isLikelyAv1SyncFrame(frameId, scan);
+
+        if (lastAcceptedAv1FrameId > 0 && frameId > lastAcceptedAv1FrameId + 1) {
+            enterAv1SyncWait("Detected AV1 frame gap at " + frameId + " after " + lastAcceptedAv1FrameId + ".", frameId);
+        }
+
+        if (frameId > 0 && waitingForAv1SyncFrame) {
+            if (!isSyncFrame) {
+                long now = System.currentTimeMillis();
+                if (now - lastAv1SyncLogMs > 250) {
+                    lastAv1SyncLogMs = now;
+                    Log.w(TAG, "Dropping AV1 frame " + frameId + " while waiting for sync frame >= " + waitingForAv1SyncFrameId);
+                }
+                ByteArrayPool.give(frameData);
+                return;
+            }
+
+            waitingForAv1SyncFrame = false;
+            waitingForAv1SyncFrameId = -1;
+            Log.i(TAG, "Recovered AV1 decode continuity on sync frame " + frameId);
+        } else if (frameId > 0 && lastAcceptedAv1FrameId > 0 && frameId <= lastAcceptedAv1FrameId) {
+            Log.w(TAG, "Dropping out-of-order AV1 frame " + frameId + " (lastAccepted=" + lastAcceptedAv1FrameId + ")");
+            ByteArrayPool.give(frameData);
+            return;
+        }
+
         maybeUpdateAv1FormatHeader(frameData, effectiveHeader);
         dumpFrameForDebug(frameData, effectiveHeader);
         submitObuFrame(frameData);
         ByteArrayPool.give(frameData);
         enqueueFrameHeader(createReleasePacketHeaderArray(effectiveHeader));
+        lastAcceptedAv1FrameId = frameId;
         framesReassembled++;
-        framesReceived++;
     }
 
     private static long makeSplitKey(int frameId, int splitId) {
@@ -1427,6 +1512,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
                 if (removed != null) {
                     removed.release();
                     logDebug("Dropping AV1 frame " + oldId + " due to window limit");
+                    enterAv1SyncWait("AV1 frame dropped due to reassembly window limit: " + oldId + ".", oldId);
                 }
             }
         }
@@ -1900,7 +1986,7 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
                     if (inputBuffer.capacity() < decodePayload.length) {
                         Log.w(TAG, "Input buffer too small for AV1 OBU frame (capacity=" + inputBuffer.capacity()
                                 + ", required=" + decodePayload.length + ")");
-                        decoder.queueInputBuffer(inputBufferId, 0, 0, System.nanoTime() / 1000, 0);
+                        maybeTrimByteArrayPool("AV1 decoder input buffer capacity too small.");
                         return;
                     }
                     inputBuffer.put(decodePayload);

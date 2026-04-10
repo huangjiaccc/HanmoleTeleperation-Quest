@@ -180,6 +180,7 @@ namespace
     void ClearDeferredYcbcrReleases();
     bool TransitionImageToShaderRead(VkCommandBuffer commandBuffer, ExternalTexture& texture);
     bool CreateNativeImage(ExternalTexture& texture, VkCommandBuffer commandBuffer, VkFormat desiredFormat);
+    void RestoreUnityTexture(ExternalTexture& texture);
     bool BindUnityTexture(ExternalTexture& texture);
 
     const char* VkFormatName(VkFormat format)
@@ -271,6 +272,31 @@ namespace
     };
     ColorTransformState g_colorTransform{};
     uint64_t g_lastLoggedExternalFormat = 0;
+    std::atomic<uint64_t> g_lastImportDescLogMs{0};
+    std::atomic<uint64_t> g_lastImportFormatLogMs{0};
+    std::atomic<uint64_t> g_lastExternalFormatConvertLogMs{0};
+    std::atomic<uint64_t> g_lastRenderEventLogMs{0};
+
+    uint64_t GetMonotonicTimeMs()
+    {
+        return static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count());
+    }
+
+    bool ShouldLogThrottled(std::atomic<uint64_t>& lastLogMs, uint64_t intervalMs)
+    {
+        const uint64_t now = GetMonotonicTimeMs();
+        const uint64_t last = lastLogMs.load(std::memory_order_relaxed);
+        if (last != 0 && now > last && (now - last) < intervalMs)
+        {
+            return false;
+        }
+
+        lastLogMs.store(now, std::memory_order_relaxed);
+        return true;
+    }
 
     int MapAndroidColorStandardToVk(int standard)
     {
@@ -1518,12 +1544,15 @@ namespace
             return false;
         }
 
-        LOGI("ImportHardwareBufferImage: AHB desc format=0x%x usage=0x%llx size=%ux%u stride=%u",
-             desc.format,
-             static_cast<unsigned long long>(desc.usage),
-             desc.width,
-             desc.height,
-             desc.stride);
+        if (ShouldLogThrottled(g_lastImportDescLogMs, 5000))
+        {
+            LOGI("ImportHardwareBufferImage: AHB desc format=0x%x usage=0x%llx size=%ux%u stride=%u",
+                 desc.format,
+                 static_cast<unsigned long long>(desc.usage),
+                 desc.width,
+                 desc.height,
+                 desc.stride);
+        }
 
         VkAndroidHardwareBufferPropertiesANDROID bufferProps{
             VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
@@ -1539,10 +1568,13 @@ namespace
             return false;
         }
 
-        LOGI("ImportHardwareBufferImage: vk format=%d externalFormat=0x%llx features=0x%x",
-             static_cast<int>(formatProps.format),
-             static_cast<unsigned long long>(formatProps.externalFormat),
-             static_cast<unsigned int>(formatProps.formatFeatures));
+        if (ShouldLogThrottled(g_lastImportFormatLogMs, 5000))
+        {
+            LOGI("ImportHardwareBufferImage: vk format=%d externalFormat=0x%llx features=0x%x",
+                 static_cast<int>(formatProps.format),
+                 static_cast<unsigned long long>(formatProps.externalFormat),
+                 static_cast<unsigned int>(formatProps.formatFeatures));
+        }
 
         const uint64_t extFmt = static_cast<uint64_t>(formatProps.externalFormat);
         if (extFmt != 0 && extFmt != g_lastLoggedExternalFormat)
@@ -1589,7 +1621,8 @@ namespace
             // Preflight: ask Unity for its destination texture format so our output matches byte layout / sRGB.
             UnityVulkanImage unityDst{};
             bool haveUnityDst = false;
-            if (texture.unityTexturePtr != nullptr)
+            const bool shouldProbeUnityDst = texture.unityTexturePtr != nullptr && !texture.unityTextureBound;
+            if (shouldProbeUnityDst)
             {
                 if (!g_graphicsVulkan->AccessTexture(
                         texture.unityTexturePtr,
@@ -1625,6 +1658,10 @@ namespace
                                            (texture.width != incomingWidth || texture.height != incomingHeight);
             if (needsOutputResize)
             {
+                if (texture.unityTextureBound)
+                {
+                    RestoreUnityTexture(texture);
+                }
                 LOGI("ImportHardwareBufferImage: output size changed %dx%d -> %dx%d, recreating output.",
                      texture.width,
                      texture.height,
@@ -1916,20 +1953,24 @@ namespace
 
             texture.unityImage.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-            LOGI("ImportHardwareBufferImage: externalFormat-only frame converted to RGBA output (%dx%d externalFormat=0x%llx)",
-                 incomingWidth,
-                 incomingHeight,
-                 static_cast<unsigned long long>(formatProps.externalFormat));
-
-            // Copy the converted RGBA frame into Unity's Texture2D (regular Unity texture).
-            if (texture.unityTexturePtr == nullptr)
+            if (ShouldLogThrottled(g_lastExternalFormatConvertLogMs, 5000))
             {
-                LOGE("ImportHardwareBufferImage: Unity texture pointer not assigned; cannot present converted frame.");
-                // Still return success for conversion, but Unity will show stale/empty texture.
+                LOGI("ImportHardwareBufferImage: externalFormat-only frame converted to RGBA output (%dx%d externalFormat=0x%llx)",
+                     incomingWidth,
+                     incomingHeight,
+                     static_cast<unsigned long long>(formatProps.externalFormat));
             }
-            else
+
+            // Directly recreating Unity's texture binding inside the import event is not stable on this Quest runtime.
+            // Stay on the copy path here so decoded frames remain visible on the target material.
+            if (true)
             {
-                if (!haveUnityDst || unityDst.image == VK_NULL_HANDLE)
+                if (texture.unityTexturePtr == nullptr)
+                {
+                    LOGE("ImportHardwareBufferImage: Unity texture pointer not assigned; cannot present converted frame.");
+                    // Still return success for conversion, but Unity will show stale/empty texture.
+                }
+                else if (!haveUnityDst || unityDst.image == VK_NULL_HANDLE)
                 {
                     LOGE("ImportHardwareBufferImage: Unity dst texture not accessible; skipping copy.");
                 }
@@ -2335,9 +2376,9 @@ namespace
             return false;
         }
 
-        if (!texture.gpuReady || texture.unityImage.image == VK_NULL_HANDLE)
+        if (texture.unityImage.image == VK_NULL_HANDLE)
         {
-            LOGE("Cannot bind Unity texture before native image is ready.");
+            LOGE("Cannot bind Unity texture before native image exists.");
             return false;
         }
 
@@ -2429,7 +2470,10 @@ namespace
             return;
         }
 
-        LOGI("Render event %d for texture=%p (op=%d)", eventId, texture, static_cast<int>(requestedOp));
+        if (ShouldLogThrottled(g_lastRenderEventLogMs, 5000))
+        {
+            LOGI("Render event %d for texture=%p (op=%d)", eventId, texture, static_cast<int>(requestedOp));
+        }
 
         switch (renderEvent)
         {
@@ -2626,7 +2670,16 @@ extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_AssignUni
     }
 
     std::lock_guard<std::mutex> lock(texture->stateMutex);
-    texture->unityTexturePtr = reinterpret_cast<void*>(unityTexturePtr);
+    void* newPtr = reinterpret_cast<void*>(unityTexturePtr);
+    if (texture->unityTexturePtr != newPtr)
+    {
+        texture->unityTexturePtr = newPtr;
+        texture->unityTextureBound = false;
+        texture->hasOriginalUnityImage = false;
+        texture->originalUnityImage = {};
+        texture->unityTextureFormat = VK_FORMAT_UNDEFINED;
+        texture->unityTextureFormatLogged = false;
+    }
 }
 
 extern "C" void UNITY_INTERFACE_EXPORT UNITY_INTERFACE_API QuestVulkan_SetYcbcrOverride(int model, int range, int swizzleMode)

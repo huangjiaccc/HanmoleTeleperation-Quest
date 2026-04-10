@@ -13,15 +13,21 @@ if not exist "%CPP_DIR%\VulkanExternalTexture.cpp" (
   exit /b 1
 )
 
+set SDK_ROOT=
+if defined ANDROID_SDK_ROOT set SDK_ROOT=%ANDROID_SDK_ROOT%
+if not defined SDK_ROOT if defined ANDROID_HOME set SDK_ROOT=%ANDROID_HOME%
+if not defined SDK_ROOT if exist "%LOCALAPPDATA%\Android\Sdk" set SDK_ROOT=%LOCALAPPDATA%\Android\Sdk
+
 set NDK=
 if defined ANDROID_NDK set NDK=%ANDROID_NDK%
 if not defined NDK if defined ANDROID_NDK_HOME set NDK=%ANDROID_NDK_HOME%
 if not defined NDK if defined UNITY_EDITOR_DIR if exist "%UNITY_EDITOR_DIR%\Editor\Data\PlaybackEngines\AndroidPlayer\NDK" set NDK=%UNITY_EDITOR_DIR%\Editor\Data\PlaybackEngines\AndroidPlayer\NDK
-if not defined NDK if exist "D:\Program Files\Unity\Editor\6000.2.10f1\Editor\Data\PlaybackEngines\AndroidPlayer\NDK" set NDK=D:\Program Files\Unity\Editor\6000.2.10f1\Editor\Data\PlaybackEngines\AndroidPlayer\NDK
-if not defined NDK if exist "%LOCALAPPDATA%\Android\Sdk\ndk" (
-  for /f "delims=" %%d in ('dir /b /ad "%LOCALAPPDATA%\Android\Sdk\ndk" ^| sort /r') do (
-    set NDK=%LOCALAPPDATA%\Android\Sdk\ndk\%%d
-    goto :ndk_found
+if not defined NDK if defined SDK_ROOT if exist "%SDK_ROOT%\ndk" (
+  for /f "delims=" %%d in ('dir /b /ad "%SDK_ROOT%\ndk" ^| sort /r') do (
+    if exist "%SDK_ROOT%\ndk\%%d\build\cmake\android.toolchain.cmake" (
+      set NDK=%SDK_ROOT%\ndk\%%d
+      goto :ndk_found
+    )
   )
 )
 :ndk_found
@@ -36,25 +42,43 @@ if not exist "%NDK%\build\cmake\android.toolchain.cmake" (
   exit /b 1
 )
 
+if defined UNITY_PLUGIN_API_DIR if not exist "%UNITY_PLUGIN_API_DIR%\IUnityGraphicsVulkan.h" set UNITY_PLUGIN_API_DIR=
 if not defined UNITY_PLUGIN_API_DIR if defined UNITY_EDITOR_DIR (
-  if exist "%UNITY_EDITOR_DIR%\Editor\Data\PluginAPI" set UNITY_PLUGIN_API_DIR=%UNITY_EDITOR_DIR%\Editor\Data\PluginAPI
+  if exist "%UNITY_EDITOR_DIR%\Editor\Data\PluginAPI\IUnityGraphicsVulkan.h" set UNITY_PLUGIN_API_DIR=%UNITY_EDITOR_DIR%\Editor\Data\PluginAPI
+)
+if not defined UNITY_PLUGIN_API_DIR call :find_unity_plugin_api_in_root "E:\Unity\Editor"
+if not defined UNITY_PLUGIN_API_DIR call :find_unity_plugin_api_in_root "D:\Program Files\Unity\Editor"
+if not defined UNITY_PLUGIN_API_DIR call :find_unity_plugin_api_in_root "C:\Program Files\Unity\Editor"
+if not defined UNITY_PLUGIN_API_DIR call :find_unity_plugin_api_in_root "C:\Program Files\Unity Hub\Editor"
+if not defined UNITY_PLUGIN_API_DIR call :find_unity_plugin_api_in_root "D:\Program Files\Unity Hub\Editor"
+
+if not defined UNITY_PLUGIN_API_DIR (
+  echo ERROR: Unity PluginAPI not found. Set UNITY_PLUGIN_API_DIR or UNITY_EDITOR_DIR.
+  exit /b 1
 )
 
 set CMAKE_EXE=
-if defined UNITY_EDITOR_DIR if exist "%UNITY_EDITOR_DIR%\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\cmake\3.22.1\bin\cmake.exe" (
-  set CMAKE_EXE=%UNITY_EDITOR_DIR%\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\cmake\3.22.1\bin\cmake.exe
+if defined UNITY_EDITOR_DIR call :find_cmake_in_root "%UNITY_EDITOR_DIR%\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\cmake"
+if not defined CMAKE_EXE if defined SDK_ROOT call :find_cmake_in_root "%SDK_ROOT%\cmake"
+if not defined CMAKE_EXE (
+  for /f "delims=" %%p in ('where cmake 2^>nul') do (
+    set CMAKE_EXE=%%p
+    goto :cmake_found
+  )
 )
-if not defined CMAKE_EXE if exist "D:\Program Files\Unity\Editor\6000.2.10f1\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\cmake\3.22.1\bin\cmake.exe" (
-  set CMAKE_EXE=D:\Program Files\Unity\Editor\6000.2.10f1\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\cmake\3.22.1\bin\cmake.exe
+:cmake_found
+
+if not defined CMAKE_EXE (
+  echo ERROR: cmake.exe not found. Install Android SDK CMake or add cmake to PATH.
+  exit /b 1
 )
-if not defined CMAKE_EXE set CMAKE_EXE=cmake
 
 set GLSLC=%NDK%\shader-tools\windows-x86_64\glslc.exe
 if not exist "%GLSLC%" (
-  if exist "%LOCALAPPDATA%\Android\Sdk\ndk" (
-    for /f "delims=" %%d in ('dir /b /ad "%LOCALAPPDATA%\Android\Sdk\ndk" ^| sort /r') do (
-      if exist "%LOCALAPPDATA%\Android\Sdk\ndk\%%d\shader-tools\windows-x86_64\glslc.exe" (
-        set GLSLC=%LOCALAPPDATA%\Android\Sdk\ndk\%%d\shader-tools\windows-x86_64\glslc.exe
+  if defined SDK_ROOT if exist "%SDK_ROOT%\ndk" (
+    for /f "delims=" %%d in ('dir /b /ad "%SDK_ROOT%\ndk" ^| sort /r') do (
+      if exist "%SDK_ROOT%\ndk\%%d\shader-tools\windows-x86_64\glslc.exe" (
+        set GLSLC=%SDK_ROOT%\ndk\%%d\shader-tools\windows-x86_64\glslc.exe
         goto :glslc_found
       )
     )
@@ -133,3 +157,30 @@ echo Done.
 echo   Build output: "%OUTPUT_SO%"
 echo   Unity plugin: "%DST_DIR%\libunity_vulkan_hwbuffer.so"
 endlocal
+goto :eof
+
+:find_cmake_in_root
+if not defined CMAKE_EXE if exist "%~1\3.22.1\bin\cmake.exe" (
+  set CMAKE_EXE=%~1\3.22.1\bin\cmake.exe
+  goto :eof
+)
+if not defined CMAKE_EXE if exist "%~1" (
+  for /f "delims=" %%d in ('dir /b /ad "%~1" ^| sort /r') do (
+    if exist "%~1\%%d\bin\cmake.exe" (
+      set CMAKE_EXE=%~1\%%d\bin\cmake.exe
+      goto :eof
+    )
+  )
+)
+goto :eof
+
+:find_unity_plugin_api_in_root
+if not defined UNITY_PLUGIN_API_DIR if exist "%~1" (
+  for /f "delims=" %%d in ('dir /b /ad "%~1" ^| sort /r') do (
+    if exist "%~1\%%d\Editor\Data\PluginAPI\IUnityInterface.h" if exist "%~1\%%d\Editor\Data\PluginAPI\IUnityGraphicsVulkan.h" (
+      set UNITY_PLUGIN_API_DIR=%~1\%%d\Editor\Data\PluginAPI
+      goto :eof
+    )
+  )
+)
+goto :eof

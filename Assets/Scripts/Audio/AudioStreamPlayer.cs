@@ -85,6 +85,7 @@ public class AudioStreamPlayer : MonoBehaviour
     private int queuedPacketCount;
     private long droppedQueuedPackets;
     private volatile bool resumeRequested;
+    private volatile bool pauseRequested;
 
     private struct QueuedAudioPacket
     {
@@ -197,7 +198,7 @@ public class AudioStreamPlayer : MonoBehaviour
 
         probeBuffer = new float[1024];
 
-        if (autoPlayOnAwake)
+        if (autoPlayOnAwake && !autoResumeOnPacket)
         {
             audioSource.Play();
         }
@@ -239,6 +240,15 @@ public class AudioStreamPlayer : MonoBehaviour
 
     private void Update()
     {
+        if (pauseRequested)
+        {
+            if (audioSource != null && audioSource.isPlaying)
+            {
+                audioSource.Stop();
+            }
+            pauseRequested = false;
+        }
+
         if (autoResumeOnPacket && resumeRequested)
         {
             if (audioSource != null && !audioSource.isPlaying)
@@ -362,6 +372,11 @@ public class AudioStreamPlayer : MonoBehaviour
         {
             audioUnderruns++;
             Array.Clear(data, filled, data.Length - filled);
+            if (autoResumeOnPacket)
+            {
+                pauseRequested = true;
+                resumeRequested = true;
+            }
         }
     }
 

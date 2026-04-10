@@ -4,9 +4,19 @@ project(questvulkanext CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT DEFINED UNITY_PLUGIN_API_DIR)
-    message(WARNING "UNITY_PLUGIN_API_DIR not set – using default path relative to Unity 6000.2.10f1")
-    set(UNITY_PLUGIN_API_DIR "D:/Program Files/Unity/Editor/6000.2.10f1/Editor/Data/PluginAPI")
+if(NOT DEFINED UNITY_PLUGIN_API_DIR AND DEFINED ENV{UNITY_PLUGIN_API_DIR})
+    set(UNITY_PLUGIN_API_DIR "$ENV{UNITY_PLUGIN_API_DIR}")
+endif()
+
+if(NOT DEFINED UNITY_PLUGIN_API_DIR AND DEFINED ENV{UNITY_EDITOR_DIR})
+    set(_unity_plugin_api_from_editor "$ENV{UNITY_EDITOR_DIR}/Editor/Data/PluginAPI")
+    if(EXISTS "${_unity_plugin_api_from_editor}/IUnityGraphicsVulkan.h")
+        set(UNITY_PLUGIN_API_DIR "${_unity_plugin_api_from_editor}")
+    endif()
+endif()
+
+if(NOT DEFINED UNITY_PLUGIN_API_DIR OR NOT EXISTS "${UNITY_PLUGIN_API_DIR}/IUnityGraphicsVulkan.h")
+    message(FATAL_ERROR "UNITY_PLUGIN_API_DIR is not set to a valid Unity PluginAPI directory.")
 endif()
 
 add_library(questvulkanext SHARED ${CMAKE_SOURCE_DIR}/VulkanExternalTexture.cpp)

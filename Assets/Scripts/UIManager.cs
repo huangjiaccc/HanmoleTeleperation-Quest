@@ -2377,7 +2377,7 @@ public class UIManager : MonoBehaviour
             {
                 vrrttMs = 0;
             }
-            _debugvrrtt.text = vrrttMs.ToString();
+            _debugvrrtt.text = vrrttMs.ToString() + "ms";
         }
 
         if (_debugwifirtt != null)
@@ -2387,7 +2387,7 @@ public class UIManager : MonoBehaviour
 
         if (_debugvideortt != null)
         {
-            _debugvideortt.text = stateData.data.video_rtt_ms.ToString() + "ms";
+            _debugvideortt.text = stateData.data.video_rtt_ms.ToString();
         }
 
         if (_debugbattery != null)

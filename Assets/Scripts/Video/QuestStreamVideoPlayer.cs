@@ -57,6 +57,8 @@ namespace Quest3VideoPlayer
         [SerializeField] private bool flipTextureVertically = true;
         [Tooltip("When enabled (Vulkan + AV1), Java outputs frames as Android HardwareBuffers to avoid CPU YUV->RGBA conversion.")]
         [SerializeField] private bool preferVulkanHardwareBufferFrames = true;
+        [Tooltip("How many HardwareBuffer frames Unity will drain per update before presenting only the newest one.")]
+        [SerializeField, Range(1, 4)] private int maxHardwareFrameDrainPerTick = 3;
 
         [Header("Side-By-Side Blend")]
         [Tooltip("Blend a side-by-side (left|right) stream into a single stitched image.")]
@@ -188,6 +190,7 @@ namespace Quest3VideoPlayer
             listenPort = 5000;
             listenPortSecondary = 4000;
             maxInFlightHardwareFrames = 2;
+            maxHardwareFrameDrainPerTick = 3;
             enableHardwareStallRecovery = false;
         }
 
@@ -832,22 +835,43 @@ namespace Quest3VideoPlayer
                 }
                   
                 AndroidJavaObject frameBundle = null;
-                try
+                int drainAttempts = Mathf.Max(1, maxHardwareFrameDrainPerTick);
+                for (int drainIndex = 0; drainIndex < drainAttempts; drainIndex++)
                 {
-                    frameBundle = decoder.Call<AndroidJavaObject>("dequeueHardwareBufferFrame");
-                }
-                catch (AndroidJavaException ex)
-                {
-                    consecutivePacketErrors++;
-                    Debug.LogError($"[QuestStreamVideoPlayer] dequeueFrameBundle failed (error #{consecutivePacketErrors}): {ex.Message}");
-                    
-                    if (consecutivePacketErrors >= maxConsecutiveErrors)
+                    AndroidJavaObject latestFrameBundle = null;
+                    try
                     {
-                        Debug.LogError($"[QuestStreamVideoPlayer] Too many consecutive errors ({consecutivePacketErrors}), attempting to recover...");
-                        consecutivePacketErrors = 0;
-                        RestartStream();
-                        yield break;
+                        latestFrameBundle = decoder.Call<AndroidJavaObject>("dequeueHardwareBufferFrame");
                     }
+                    catch (AndroidJavaException ex)
+                    {
+                        consecutivePacketErrors++;
+                        Debug.LogError($"[QuestStreamVideoPlayer] dequeueFrameBundle failed (error #{consecutivePacketErrors}): {ex.Message}");
+
+                        if (consecutivePacketErrors >= maxConsecutiveErrors)
+                        {
+                            Debug.LogError($"[QuestStreamVideoPlayer] Too many consecutive errors ({consecutivePacketErrors}), attempting to recover...");
+                            consecutivePacketErrors = 0;
+                            RestartStream();
+                            yield break;
+                        }
+
+                        break;
+                    }
+
+                    if (latestFrameBundle == null)
+                    {
+                        break;
+                    }
+
+                    consecutivePacketErrors = 0;
+
+                    if (frameBundle != null)
+                    {
+                        ReleaseHardwareBundle(frameBundle);
+                    }
+
+                    frameBundle = latestFrameBundle;
                 }
 
                 if (frameBundle == null)
@@ -1340,79 +1364,17 @@ namespace Quest3VideoPlayer
             }
 
             ahbReflectionInitialized = true;
-            unityAndroidHardwareBufferType = FindType("UnityEngine.Android.AndroidHardwareBuffer")
-                                            ?? FindType("UnityEngine.AndroidHardwareBuffer");
+            unityAndroidHardwareBufferType = FindPreferredHardwareBufferType();
             if (unityAndroidHardwareBufferType == null)
             {
-                Debug.LogWarning("[QuestStreamVideoPlayer] Unity AndroidHardwareBuffer type not found. Ensure Vulkan is active and add link.xml preservation if using IL2CPP stripping.");
+                Debug.LogWarning("[QuestStreamVideoPlayer] Unity AndroidHardwareBuffer type not found. Current runtime likely does not expose the expected managed wrapper type, or Unity moved it to a different namespace/assembly.");
                 DumpHardwareBufferTypesOnce();
                 return false;
             }
 
-            unityAndroidHardwareBufferImportMethod = unityAndroidHardwareBufferType.GetMethod(
-                "Import",
-                BindingFlags.Public | BindingFlags.Static,
-                null,
-                new[] { typeof(AndroidJavaObject) },
-                null);
-
-            unityAndroidHardwareBufferImportTakesBool = false;
-            if (unityAndroidHardwareBufferImportMethod == null)
-            {
-                unityAndroidHardwareBufferImportMethod = unityAndroidHardwareBufferType.GetMethod(
-                    "Import",
-                    BindingFlags.Public | BindingFlags.Static,
-                    null,
-                    new[] { typeof(AndroidJavaObject), typeof(bool) },
-                    null);
-                unityAndroidHardwareBufferImportTakesBool = unityAndroidHardwareBufferImportMethod != null;
-            }
-
-            unityAndroidHardwareBufferGetNativeTexturePtrMethod =
-                unityAndroidHardwareBufferType.GetMethod(
-                    "GetNativeTexturePtr",
-                    BindingFlags.Public | BindingFlags.Instance,
-                    null,
-                    Type.EmptyTypes,
-                    null) ??
-                unityAndroidHardwareBufferType.GetMethod(
-                    "get_NativeTexture",
-                    BindingFlags.Public | BindingFlags.Instance,
-                    null,
-                    Type.EmptyTypes,
-                    null);
-
-            if (unityAndroidHardwareBufferGetNativeTexturePtrMethod == null)
-            {
-                foreach (var method in unityAndroidHardwareBufferType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    if (method.GetParameters().Length != 0)
-                    {
-                        continue;
-                    }
-
-                    if (method.Name.IndexOf("Native", StringComparison.OrdinalIgnoreCase) < 0 ||
-                        method.Name.IndexOf("Texture", StringComparison.OrdinalIgnoreCase) < 0)
-                    {
-                        continue;
-                    }
-
-                    if (method.ReturnType == typeof(IntPtr) ||
-                        method.ReturnType == typeof(long) ||
-                        method.ReturnType == typeof(ulong))
-                    {
-                        unityAndroidHardwareBufferGetNativeTexturePtrMethod = method;
-                        break;
-                    }
-                }
-            }
-
-            unityAndroidHardwareBufferDisposeMethod = unityAndroidHardwareBufferType.GetMethod(
-                "Dispose",
-                BindingFlags.Public | BindingFlags.Instance,
-                null,
-                Type.EmptyTypes,
-                null);
+            unityAndroidHardwareBufferImportMethod = ResolveHardwareBufferImportMethod(unityAndroidHardwareBufferType, out unityAndroidHardwareBufferImportTakesBool);
+            unityAndroidHardwareBufferGetNativeTexturePtrMethod = ResolveHardwareBufferTextureAccessor(unityAndroidHardwareBufferType);
+            unityAndroidHardwareBufferDisposeMethod = ResolveHardwareBufferDisposeMethod(unityAndroidHardwareBufferType);
 
             if (unityAndroidHardwareBufferImportMethod == null)
             {
@@ -1430,7 +1392,7 @@ namespace Quest3VideoPlayer
 
         private static void DumpHardwareBufferTypesOnce()
         {
-            if (hardwareBufferDumped || !UnityEngine.Debug.isDebugBuild)
+            if (hardwareBufferDumped)
             {
                 return;
             }
@@ -1524,6 +1486,189 @@ namespace Quest3VideoPlayer
             }
 
             return null;
+        }
+
+        private Type FindPreferredHardwareBufferType()
+        {
+            string[] candidateTypeNames =
+            {
+                "UnityEngine.Android.AndroidHardwareBuffer",
+                "UnityEngine.AndroidHardwareBuffer",
+                "UnityEngine.Rendering.AndroidHardwareBuffer",
+                "UnityEngine.Experimental.Rendering.AndroidHardwareBuffer",
+            };
+
+            foreach (string fullName in candidateTypeNames)
+            {
+                Type type = FindType(fullName);
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (Type type in types)
+                {
+                    string fullName = type?.FullName;
+                    if (string.IsNullOrEmpty(fullName) ||
+                        fullName.IndexOf("HardwareBuffer", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue;
+                    }
+
+                    if (ResolveHardwareBufferImportMethod(type, out _) != null)
+                    {
+                        Debug.Log($"[QuestStreamVideoPlayer] Discovered HardwareBuffer wrapper via reflection scan: {fullName}");
+                        return type;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static MethodInfo ResolveHardwareBufferImportMethod(Type hardwareBufferType, out bool takesBool)
+        {
+            takesBool = false;
+            if (hardwareBufferType == null)
+            {
+                return null;
+            }
+
+            MethodInfo importMethod = hardwareBufferType.GetMethod(
+                "Import",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(AndroidJavaObject) },
+                null);
+            if (importMethod != null)
+            {
+                return importMethod;
+            }
+
+            importMethod = hardwareBufferType.GetMethod(
+                "Import",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(AndroidJavaObject), typeof(bool) },
+                null);
+            if (importMethod != null)
+            {
+                takesBool = true;
+                return importMethod;
+            }
+
+            foreach (MethodInfo method in hardwareBufferType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (!string.Equals(method.Name, "Import", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                ParameterInfo[] parameters = method.GetParameters();
+                if (parameters.Length == 1 && parameters[0].ParameterType == typeof(AndroidJavaObject))
+                {
+                    return method;
+                }
+
+                if (parameters.Length == 2 &&
+                    parameters[0].ParameterType == typeof(AndroidJavaObject) &&
+                    parameters[1].ParameterType == typeof(bool))
+                {
+                    takesBool = true;
+                    return method;
+                }
+            }
+
+            return null;
+        }
+
+        private static MethodInfo ResolveHardwareBufferTextureAccessor(Type hardwareBufferType)
+        {
+            if (hardwareBufferType == null)
+            {
+                return null;
+            }
+
+            MethodInfo accessor = hardwareBufferType.GetMethod(
+                "GetNativeTexturePtr",
+                BindingFlags.Public | BindingFlags.Instance,
+                null,
+                Type.EmptyTypes,
+                null) ??
+                hardwareBufferType.GetMethod(
+                    "GetNativeTexture",
+                    BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    Type.EmptyTypes,
+                    null) ??
+                hardwareBufferType.GetMethod(
+                    "get_NativeTexture",
+                    BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    Type.EmptyTypes,
+                    null);
+
+            if (accessor != null)
+            {
+                return accessor;
+            }
+
+            foreach (MethodInfo method in hardwareBufferType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (method.GetParameters().Length != 0)
+                {
+                    continue;
+                }
+
+                if (method.Name.IndexOf("Native", StringComparison.OrdinalIgnoreCase) < 0 ||
+                    method.Name.IndexOf("Texture", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                if (method.ReturnType == typeof(IntPtr) ||
+                    method.ReturnType == typeof(long) ||
+                    method.ReturnType == typeof(ulong))
+                {
+                    return method;
+                }
+            }
+
+            return null;
+        }
+
+        private static MethodInfo ResolveHardwareBufferDisposeMethod(Type hardwareBufferType)
+        {
+            if (hardwareBufferType == null)
+            {
+                return null;
+            }
+
+            return hardwareBufferType.GetMethod(
+                       "Dispose",
+                       BindingFlags.Public | BindingFlags.Instance,
+                       null,
+                       Type.EmptyTypes,
+                       null) ??
+                   hardwareBufferType.GetMethod(
+                       "Release",
+                       BindingFlags.Public | BindingFlags.Instance,
+                       null,
+                       Type.EmptyTypes,
+                       null);
         }
 
         private void DisposeUnityHardwareBuffer(object unityHardwareBuffer)
@@ -1641,8 +1786,9 @@ namespace Quest3VideoPlayer
                 ApplyQuestVulkanManualYuvOverrideOnly();
             }
 
-            // Unity texture pointer is assigned via EnsureQuestVulkanUnityTexture before import;
-            // the native plugin copies converted RGBA into that texture each frame.
+            // Unity texture pointer is assigned via EnsureQuestVulkanUnityTexture before import.
+            // The native plugin now prefers rebinding Unity to its RGBA output image directly,
+            // and only falls back to per-frame copy if direct binding is unavailable.
 
             return true;
 #else

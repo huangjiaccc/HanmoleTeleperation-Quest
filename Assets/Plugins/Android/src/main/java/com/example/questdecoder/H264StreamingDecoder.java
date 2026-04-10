@@ -1338,19 +1338,13 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
             if (annexBNal == null || annexBNal.length == 0) {
                 continue;
             }
-            int startCodeLen = findAnnexBStartCodeLength(annexBNal);
-            int payloadOffset = Math.min(startCodeLen, annexBNal.length);
-            if (payloadOffset >= annexBNal.length) {
+            try {
+                if (!dispatchFramePayloadNalUnits(annexBNal)) {
+                    dispatchSingleNalPayload(annexBNal, 0, annexBNal.length);
+                }
+            } finally {
                 ByteArrayPool.give(annexBNal);
-                continue;
             }
-            int nalType = annexBNal[payloadOffset] & 0x1F;
-            int payloadLength = Math.max(0, annexBNal.length - payloadOffset);
-            byte[] payload = ByteArrayPool.rent(payloadLength);
-            System.arraycopy(annexBNal, payloadOffset, payload, 0, payloadLength);
-            handleNalUnit(payload, nalType);
-            ByteArrayPool.give(payload);
-            ByteArrayPool.give(annexBNal);
         }
         enqueueFrameHeader(createReleasePacketHeaderArray(assembler.getLatestHeader()));
 
@@ -1437,6 +1431,122 @@ public class H264StreamingDecoder implements ImageReader.OnImageAvailableListene
             return 3;
         }
         return 0;
+    }
+
+    private int findAnnexBStartCodeLength(byte[] data, int offset) {
+        if (data == null || offset < 0 || offset >= data.length) {
+            return 0;
+        }
+        if (offset + 4 <= data.length
+                && data[offset] == 0
+                && data[offset + 1] == 0
+                && data[offset + 2] == 0
+                && data[offset + 3] == 1) {
+            return 4;
+        }
+        if (offset + 3 <= data.length
+                && data[offset] == 0
+                && data[offset + 1] == 0
+                && data[offset + 2] == 1) {
+            return 3;
+        }
+        return 0;
+    }
+
+    private boolean dispatchFramePayloadNalUnits(byte[] frameData) {
+        if (frameData == null || frameData.length == 0) {
+            return false;
+        }
+
+        if (dispatchAnnexBNalUnits(frameData)) {
+            return true;
+        }
+
+        return dispatchLengthPrefixedNalUnits(frameData);
+    }
+
+    private boolean dispatchAnnexBNalUnits(byte[] frameData) {
+        int firstStart = -1;
+        for (int i = 0; i < frameData.length; i++) {
+            if (findAnnexBStartCodeLength(frameData, i) > 0) {
+                firstStart = i;
+                break;
+            }
+        }
+
+        if (firstStart < 0) {
+            return false;
+        }
+
+        boolean dispatched = false;
+        int nalStart = firstStart;
+        while (nalStart < frameData.length) {
+            int startCodeLen = findAnnexBStartCodeLength(frameData, nalStart);
+            if (startCodeLen <= 0) {
+                nalStart++;
+                continue;
+            }
+
+            int payloadStart = nalStart + startCodeLen;
+            int nextStart = frameData.length;
+            for (int i = payloadStart; i < frameData.length; i++) {
+                if (findAnnexBStartCodeLength(frameData, i) > 0) {
+                    nextStart = i;
+                    break;
+                }
+            }
+
+            int payloadLength = nextStart - payloadStart;
+            if (payloadLength > 0) {
+                dispatchSingleNalPayload(frameData, payloadStart, payloadLength);
+                dispatched = true;
+            }
+
+            if (nextStart >= frameData.length) {
+                break;
+            }
+            nalStart = nextStart;
+        }
+
+        return dispatched;
+    }
+
+    private boolean dispatchLengthPrefixedNalUnits(byte[] frameData) {
+        int offset = 0;
+        boolean dispatched = false;
+
+        while (offset + 4 <= frameData.length) {
+            int nalLength = ((frameData[offset] & 0xFF) << 24)
+                    | ((frameData[offset + 1] & 0xFF) << 16)
+                    | ((frameData[offset + 2] & 0xFF) << 8)
+                    | (frameData[offset + 3] & 0xFF);
+            offset += 4;
+
+            if (nalLength <= 0 || offset + nalLength > frameData.length) {
+                return false;
+            }
+
+            dispatchSingleNalPayload(frameData, offset, nalLength);
+            dispatched = true;
+            offset += nalLength;
+        }
+
+        return dispatched && offset == frameData.length;
+    }
+
+    private void dispatchSingleNalPayload(byte[] source, int offset, int length) {
+        if (source == null || length <= 0 || offset < 0 || offset + length > source.length) {
+            return;
+        }
+
+        int nalType = source[offset] & 0x1F;
+        byte[] payload = ByteArrayPool.rent(length);
+        System.arraycopy(source, offset, payload, 0, length);
+        try {
+            handleNalUnit(payload, nalType);
+        } finally {
+            ByteArrayPool.give(payload);
+        }
     }
 
     private byte[] withStartCode(byte[] nalPayload) {
