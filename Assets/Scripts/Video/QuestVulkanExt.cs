@@ -7,6 +7,7 @@ namespace Quest3VideoPlayer
 {
     internal static class QuestVulkanExt
     {
+        public const int RenderEventBindTexture = 0x5152;
         public const int RenderEventImportHardwareBuffer = 0x5154;
         public const int RenderEventDestroyTexture = 0x5153;
 
@@ -18,6 +19,9 @@ namespace Quest3VideoPlayer
 
         [DllImport("unity_vulkan_hwbuffer")]
         public static extern void QuestVulkan_AssignUnityTexture(IntPtr handle, IntPtr unityTexturePtr);
+
+        [DllImport("unity_vulkan_hwbuffer", EntryPoint = "QuestVulkan_SetUnityTexture")]
+        public static extern void QuestVulkan_SetUnityTexture(IntPtr handle, IntPtr unityTexturePtr);
 
         [DllImport("unity_vulkan_hwbuffer", EntryPoint = "QuestVulkan_SetYcbcrOverride2")]
         private static extern void QuestVulkan_SetYcbcrOverride2(int model, int range, int swizzleMode, int xChromaOffset, int yChromaOffset);

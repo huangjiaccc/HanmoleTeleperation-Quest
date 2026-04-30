@@ -52,10 +52,10 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
     private static final int MAX_CPU_CALIBRATION_QUEUE = 1;
     private static final int CPU_CALIBRATION_IMAGE_READER_DEPTH = 2;
     private static final int RELEASE_PACKET_HEADER_SIZE = Integer.BYTES * 8;
-    // Keep only the newest HardwareBuffer frame queued in Java. Holding onto more decoded Images
-    // here leaves no headroom for acquireLatestImage() and can saturate ImageReader(maxImages=3).
-    private static final int MAX_HARDWARE_FRAME_QUEUE = 1;
-    private static final int HARDWARE_IMAGE_READER_DEPTH = 3;
+    // Keep multiple HardwareBuffer frames queued in Java to allow Unity to drain at its own pace.
+    // With ImageReader(maxImages=8), we can safely queue up to 5 frames.
+    private static final int MAX_HARDWARE_FRAME_QUEUE = 5;
+    private static final int HARDWARE_IMAGE_READER_DEPTH = 8;
     private static final int FENCE_WAIT_TIMEOUT_MS = 10;
     private static final int FENCE_RESULT_WAIT_FAILED = -2;
     private static final long BYTE_ARRAY_POOL_TRIM_INTERVAL_MS = 250;
@@ -1161,18 +1161,19 @@ public class Av1StreamingDecoder implements ImageReader.OnImageAvailableListener
         }
 
         MediaFormat format = MediaFormat.createVideoFormat("video/av01", width, height);
-        // Use Surface output when we can consume the buffers without CPU plane access.
-        // For the legacy YUV->RGBA path, some devices (Quest) expose planes reliably only when
-        // requesting a flexible YUV format here.
         format.setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
                 hardwareBuffersEnabled
                         ? MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
                         : MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
         format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, width * height * 3 / 2);
-        // 添加关键的解码器配置参数
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, 30);
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, 90);
+        format.setString(MediaFormat.KEY_PROFILE, "main");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            format.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT709);
+            format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO);
+            format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+        }
         
         try {
             decoder.configure(format, surface, null, 0);

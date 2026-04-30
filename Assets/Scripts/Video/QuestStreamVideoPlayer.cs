@@ -58,7 +58,7 @@ namespace Quest3VideoPlayer
         [Tooltip("When enabled (Vulkan + AV1), Java outputs frames as Android HardwareBuffers to avoid CPU YUV->RGBA conversion.")]
         [SerializeField] private bool preferVulkanHardwareBufferFrames = true;
         [Tooltip("How many HardwareBuffer frames Unity will drain per update before presenting only the newest one.")]
-        [SerializeField, Range(1, 4)] private int maxHardwareFrameDrainPerTick = 3;
+        [SerializeField, Range(1, 8)] private int maxHardwareFrameDrainPerTick = 5;
 
         [Header("Side-By-Side Blend")]
         [Tooltip("Blend a side-by-side (left|right) stream into a single stitched image.")]
@@ -190,7 +190,7 @@ namespace Quest3VideoPlayer
             listenPort = 5000;
             listenPortSecondary = 4000;
             maxInFlightHardwareFrames = 2;
-            maxHardwareFrameDrainPerTick = 3;
+            maxHardwareFrameDrainPerTick = 5;
             enableHardwareStallRecovery = false;
         }
 
@@ -334,6 +334,7 @@ namespace Quest3VideoPlayer
 
         private readonly Queue<InFlightHardwareResource> inFlightHardwareResources = new Queue<InFlightHardwareResource>(8);
         private AndroidJavaObject calibrationHoldBundle;
+        private AndroidJavaObject retainedHardwareRetryBundle;
         [SerializeField, Range(1, 8)] private int maxInFlightHardwareFrames = 2;
         private bool usingHardwareBufferFrames;
         private Texture externalHardwareTexture;
@@ -349,6 +350,14 @@ namespace Quest3VideoPlayer
         private int nativeHardwareImportFailureCount;
         private bool nativeHardwareImportIssued;
         private bool nativeHardwareImportCompletedOnce;
+        private float lastNativeImportPendingLogTime;
+        private float lastDequeueLogTime;
+        private float lastNativeImportStatusLogTime;
+        private float lastPipelineStatsLogTime;
+        private long lastPipelineStatsFramesEnqueued;
+        private long lastPipelineStatsFramesDequeued;
+        private long lastPipelineStatsProduced;
+        private long lastPipelineStatsPresented;
         private bool zeroCopyPathConfirmedThisStream;
         private readonly QuestVulkanYcbcrOverrideApplier ycbcrOverrideApplier = new QuestVulkanYcbcrOverrideApplier();
 
@@ -418,6 +427,13 @@ namespace Quest3VideoPlayer
             Failed = 2,
         }
 
+        private enum HardwareFrameApplyResult
+        {
+            Dropped = 0,
+            Presented = 1,
+            RetryNextTick = 2,
+        }
+
         private struct InFlightHardwareResource
         {
             public AndroidJavaObject Bundle;
@@ -428,6 +444,7 @@ namespace Quest3VideoPlayer
 
         private void Start()
         {
+            AppLog.Log("[QuestStreamVideoPlayer] Start() called");
             colorCalibrator = GetComponent<VideoColorCalibrator>();
             if (colorCalibrator == null)
             {
@@ -437,7 +454,12 @@ namespace Quest3VideoPlayer
 
             if (autoStart)
             {
+                AppLog.Log("[QuestStreamVideoPlayer] autoStart=true, starting AutoStartWhenConfigured");
                 StartCoroutine(AutoStartWhenConfigured());
+            }
+            else
+            {
+                AppLog.Log("[QuestStreamVideoPlayer] autoStart=false, not starting");
             }
 
         }
@@ -487,7 +509,11 @@ namespace Quest3VideoPlayer
         private void OnApplicationFocus(bool hasFocus)
         {
             applicationFocusState = hasFocus;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            HandleApplicationSuspendState($"OnApplicationFocus({hasFocus})", applicationPauseState);
+#else
             HandleApplicationSuspendState($"OnApplicationFocus({hasFocus})", applicationPauseState || !hasFocus);
+#endif
         }
 
         public void ConfigureNetwork(string address, int primaryPort, int secondaryPort, string senderIp = "")
@@ -674,6 +700,7 @@ namespace Quest3VideoPlayer
 
         public void StartStream()
         {
+            AppLog.Log("[QuestStreamVideoPlayer] StartStream called");
             LogVerbose("StartStream requested.");
             Debug.Log($"[QuestStreamVideoPlayer] FixedMode={(colorCalibrator != null && colorCalibrator.ForceFixedManualYuvParams)} (includesPost=True) instanceId={GetInstanceID()}");
             Debug.Log(DataManager.Instance.videoDecodeMode + "videoDecodeMode:isav1---->" + (DataManager.Instance.videoDecodeMode == DecoderFlavor.AV1));
@@ -825,28 +852,46 @@ namespace Quest3VideoPlayer
 
                 if (SyncDecoderOutputModeIfNeeded())
                 {
+                    AppLog.Log("[QuestStreamVideoPlayer] Exit: SyncDecoderOutputModeIfNeeded");
                     yield break;
                 }
 
                 if (!usingHardwareBufferFrames)
                 {
-                    Debug.LogError("[QuestStreamVideoPlayer] CPU frame rendering path is disabled in GPU-only mode.");
+                    AppLog.Log("[QuestStreamVideoPlayer] Exit: !usingHardwareBufferFrames");
                     yield break;
                 }
                   
-                AndroidJavaObject frameBundle = null;
-                int drainAttempts = Mathf.Max(1, maxHardwareFrameDrainPerTick);
-                for (int drainIndex = 0; drainIndex < drainAttempts; drainIndex++)
+                AndroidJavaObject frameBundle = retainedHardwareRetryBundle;
+                retainedHardwareRetryBundle = null;
+                int drainedCount = 0;
+                int maxDrainPerFrame = Mathf.Max(1, maxHardwareFrameDrainPerTick);
+
+                while (drainedCount < maxDrainPerFrame)
                 {
                     AndroidJavaObject latestFrameBundle = null;
                     try
                     {
+                        bool shouldLogDequeue = Time.realtimeSinceStartup - lastDequeueLogTime >= 1f;
+                        if (drainedCount == 0 && shouldLogDequeue)
+                        {
+                            lastDequeueLogTime = Time.realtimeSinceStartup;
+                            AppLog.Log("[QuestStreamVideoPlayer] Attempting dequeue...");
+                        }
                         latestFrameBundle = decoder.Call<AndroidJavaObject>("dequeueHardwareBufferFrame");
+                        if (drainedCount == 0 && latestFrameBundle != null && shouldLogDequeue)
+                        {
+                            AppLog.Log("[QuestStreamVideoPlayer] Successfully dequeued frame");
+                        }
+                        else if (drainedCount == 0 && latestFrameBundle == null && shouldLogDequeue)
+                        {
+                            AppLog.Log("[QuestStreamVideoPlayer] Dequeue returned null");
+                        }
                     }
                     catch (AndroidJavaException ex)
                     {
                         consecutivePacketErrors++;
-                        Debug.LogError($"[QuestStreamVideoPlayer] dequeueFrameBundle failed (error #{consecutivePacketErrors}): {ex.Message}");
+                        AppLog.Log($"[QuestStreamVideoPlayer] dequeueFrameBundle failed (error #{consecutivePacketErrors}): {ex.Message}");
 
                         if (consecutivePacketErrors >= maxConsecutiveErrors)
                         {
@@ -865,8 +910,9 @@ namespace Quest3VideoPlayer
                     }
 
                     consecutivePacketErrors = 0;
+                    drainedCount++;
 
-                    if (frameBundle != null)
+                    if (frameBundle != null && frameBundle != retainedHardwareRetryBundle)
                     {
                         ReleaseHardwareBundle(frameBundle);
                     }
@@ -881,6 +927,11 @@ namespace Quest3VideoPlayer
                     continue;
                 }
 
+                if (drainedCount > 1 && verboseLogging)
+                {
+                    Debug.Log($"[QuestStreamVideoPlayer] Drained {drainedCount} frames this tick, presenting latest.");
+                }
+
                 try
                 {
                     int[] headerData = frameBundle.Call<int[]>("getHeader");
@@ -893,9 +944,18 @@ namespace Quest3VideoPlayer
                         frameHeight = expectedHeight;
                     }
 
-                    ApplyHardwareFrameToTargets(frameBundle, frameWidth, frameHeight);
+                    HardwareFrameApplyResult applyResult = ApplyHardwareFrameToTargets(frameBundle, frameWidth, frameHeight);
                     consecutivePacketErrors = 0;
-                    frameBundle = null; // ownership transferred to in-flight queue
+                    switch (applyResult)
+                    {
+                        case HardwareFrameApplyResult.Presented:
+                            frameBundle = null; // ownership transferred to in-flight queue
+                            break;
+                        case HardwareFrameApplyResult.RetryNextTick:
+                            retainedHardwareRetryBundle = frameBundle;
+                            frameBundle = null;
+                            break;
+                    }
                 }
                 finally
                 {
@@ -1032,6 +1092,12 @@ namespace Quest3VideoPlayer
                 calibrationHoldBundle = null;
             }
 
+            if (retainedHardwareRetryBundle != null)
+            {
+                ReleaseHardwareBundle(retainedHardwareRetryBundle);
+                retainedHardwareRetryBundle = null;
+            }
+
             ShutdownQuestVulkanStream();
 
             if (externalHardwareTexture != null)
@@ -1076,13 +1142,13 @@ namespace Quest3VideoPlayer
                 UnityHardwareBuffer = unityHardwareBuffer
             });
 
-            // Java decoders use ImageReader(maxImages=3) for HardwareBuffer output.
+            // Java decoders use ImageReader(maxImages=8) for HardwareBuffer output.
             // Leave room for one queued decoder frame plus the next acquireLatestImage() call;
             // retaining more than one previously presented frame on the Unity side can saturate ImageReader.
             int maxRetainedFrames = Mathf.Max(1, maxInFlightHardwareFrames);
             if (usingHardwareBufferFrames)
             {
-                maxRetainedFrames = Mathf.Min(maxRetainedFrames, 1);
+                maxRetainedFrames = Mathf.Min(maxRetainedFrames, 2);
             }
 
             while (inFlightHardwareResources.Count > maxRetainedFrames)
@@ -1093,12 +1159,12 @@ namespace Quest3VideoPlayer
             }
         }
 
-        private void ApplyHardwareFrameToTargets(AndroidJavaObject frameBundle, int frameWidth, int frameHeight)
+        private HardwareFrameApplyResult ApplyHardwareFrameToTargets(AndroidJavaObject frameBundle, int frameWidth, int frameHeight)
         {
             if (frameBundle == null)
             {
                 HandleEmptyFrameTick();
-                return;
+                return HardwareFrameApplyResult.Dropped;
             }
 
             EnsureSideBySideBlendMaterial();
@@ -1140,13 +1206,18 @@ namespace Quest3VideoPlayer
                     desiredHeight);
                 lastFramePresentedTime = Time.realtimeSinceStartup;
                 emptyFrameTicks = 0;
-                return;
+                return HardwareFrameApplyResult.Presented;
             }
 
-            if (!TryUpdateTextureFromHardwareBufferFrame(frameBundle, frameWidth, frameHeight, out var unityHardwareBuffer))
+            if (!TryUpdateTextureFromHardwareBufferFrame(frameBundle, frameWidth, frameHeight, out var unityHardwareBuffer, out bool retryNextTick))
             {
+                if (retryNextTick)
+                {
+                    return HardwareFrameApplyResult.RetryNextTick;
+                }
+
                 ReleaseHardwareBundle(frameBundle);
-                return;
+                return HardwareFrameApplyResult.Dropped;
             }
 
             framesDecoded++;
@@ -1174,7 +1245,7 @@ namespace Quest3VideoPlayer
                 // Holding the Java Image/HardwareBuffer bundle on the Unity side starves
                 // ImageReader(maxImages=3) and eventually stalls decoder output.
                 ReleaseHardwareBundle(frameBundle);
-                return;
+                return HardwareFrameApplyResult.Presented;
             }
 
             if (!useNativeHardwareBufferImporter && unityHardwareBuffer != null)
@@ -1187,11 +1258,18 @@ namespace Quest3VideoPlayer
             }
 
             TrackInFlightHardwareResource(frameBundle, unityHardwareBuffer);
+            return HardwareFrameApplyResult.Presented;
         }
 
-        private bool TryUpdateTextureFromHardwareBufferFrame(AndroidJavaObject frameBundle, int frameWidth, int frameHeight, out object unityHardwareBuffer)
+        private bool TryUpdateTextureFromHardwareBufferFrame(
+            AndroidJavaObject frameBundle,
+            int frameWidth,
+            int frameHeight,
+            out object unityHardwareBuffer,
+            out bool retryNextTick)
         {
             unityHardwareBuffer = null;
+            retryNextTick = false;
 
             if (!IsAndroidTarget() || decoder == null)
             {
@@ -1234,7 +1312,8 @@ namespace Quest3VideoPlayer
                             textureWidth,
                             textureHeight,
                             fenceFd,
-                            out unityHardwareBuffer))
+                            out unityHardwareBuffer,
+                            out retryNextTick))
                     {
                         if (fenceFd >= 0)
                         {
@@ -1995,9 +2074,11 @@ namespace Quest3VideoPlayer
             int frameWidth,
             int frameHeight,
             int fenceFd,
-            out object unityHardwareBuffer)
+            out object unityHardwareBuffer,
+            out bool retryNextTick)
         {
             unityHardwareBuffer = null;
+            retryNextTick = false;
 
 #if UNITY_ANDROID && !UNITY_EDITOR
             if (!EnsureQuestVulkanStreamTexture(frameWidth, frameHeight))
@@ -2024,6 +2105,12 @@ namespace Quest3VideoPlayer
 
                 if (importStatus == QuestVulkanTextureOperationStatus.Pending)
                 {
+                    if (Time.realtimeSinceStartup - lastNativeImportPendingLogTime >= 1f)
+                    {
+                        lastNativeImportPendingLogTime = Time.realtimeSinceStartup;
+                        Debug.Log($"[QuestStreamVideoPlayer] Native HardwareBuffer import still pending; retrying current frame next tick. streamHandle={(questVulkanStreamHandle != IntPtr.Zero)}, nativeIssued={nativeHardwareImportIssued}, decoded={framesDecoded}");
+                    }
+                    retryNextTick = true;
                     return false;
                 }
 
@@ -2031,10 +2118,22 @@ namespace Quest3VideoPlayer
                 {
                     nativeHardwareImportFailureCount = 0;
                     nativeHardwareImportCompletedOnce = true;
+                    questVulkanUnityTextureBound = true;
+                    if (verboseLogging && Time.realtimeSinceStartup - lastNativeImportStatusLogTime >= 1f)
+                    {
+                        lastNativeImportStatusLogTime = Time.realtimeSinceStartup;
+                        AppLog.Log("[QuestStreamVideoPlayer] Native HardwareBuffer import completed successfully.");
+                    }
                 }
                 else if (importStatus == QuestVulkanTextureOperationStatus.Failed)
                 {
                     nativeHardwareImportFailureCount++;
+                    questVulkanUnityTextureBound = false;
+                    if (Time.realtimeSinceStartup - lastNativeImportStatusLogTime >= 1f)
+                    {
+                        lastNativeImportStatusLogTime = Time.realtimeSinceStartup;
+                        Debug.LogWarning($"[QuestStreamVideoPlayer] Native HardwareBuffer import failed. consecutiveFailures={nativeHardwareImportFailureCount}");
+                    }
                     if (nativeHardwareImportFailureCount >= 10)
                     {
                         nativeHardwareImportFailureCount = 0;
@@ -2528,6 +2627,7 @@ namespace Quest3VideoPlayer
         {
             emptyFrameTicks++;
             MaybeRecoverFromHardwareStall();
+            MaybeLogPipelineStats();
 
             if (!verboseLogging)
             {
@@ -2539,6 +2639,45 @@ namespace Quest3VideoPlayer
                 Debug.Log("[QuestStreamVideoPlayer] No frame dequeued this tick.");
                 LogDecoderHealth(emptyFrameTicks);
             }
+        }
+
+        private void MaybeLogPipelineStats()
+        {
+            if (!verboseLogging || decoder == null)
+            {
+                return;
+            }
+
+            float now = Time.realtimeSinceStartup;
+            if (now - lastPipelineStatsLogTime < 1f)
+            {
+                return;
+            }
+
+            long enqueued = GetFramesEnqueued();
+            long dequeued = GetFramesDequeued();
+            long produced = GetProducedFrameCount();
+            long presented = framesDecoded;
+
+            float elapsed = lastPipelineStatsLogTime > 0f ? now - lastPipelineStatsLogTime : 0f;
+            string perSec = "warming-up";
+            if (elapsed > 0.001f)
+            {
+                float producedPerSec = (produced - lastPipelineStatsProduced) / elapsed;
+                float enqueuedPerSec = (enqueued - lastPipelineStatsFramesEnqueued) / elapsed;
+                float dequeuedPerSec = (dequeued - lastPipelineStatsFramesDequeued) / elapsed;
+                float presentedPerSec = (presented - lastPipelineStatsPresented) / elapsed;
+                perSec = $"produced={producedPerSec:F1}/s, enqueued={enqueuedPerSec:F1}/s, dequeued={dequeuedPerSec:F1}/s, presented={presentedPerSec:F1}/s";
+            }
+
+            lastPipelineStatsLogTime = now;
+            lastPipelineStatsFramesEnqueued = enqueued;
+            lastPipelineStatsFramesDequeued = dequeued;
+            lastPipelineStatsProduced = produced;
+            lastPipelineStatsPresented = presented;
+
+            Debug.Log(
+                $"[QuestStreamVideoPlayer] Pipeline stats: expectedNativeBuild=ycbcr_manual_yuv_v7_direct_bind, {perSec}, totals produced={produced}, enqueued={enqueued}, dequeued={dequeued}, presented={presented}, javaHwQueue={GetDecoderIntState("getHardwareFrameQueueSize")}, importer={GetDecoderBoolState("isNativeHardwareBufferImporterEnabled")}, javaUsing={GetDecoderBoolState("isDecoderUsingHardwareBuffers")}, streamHandle={(questVulkanStreamHandle != IntPtr.Zero)}, nativeIssued={nativeHardwareImportIssued}");
         }
 
         private void MaybeRecoverFromHardwareStall()

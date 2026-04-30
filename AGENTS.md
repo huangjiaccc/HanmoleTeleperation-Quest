@@ -4,7 +4,7 @@
 - 这是一个 Unity 6 Quest 遥操作项目，当前编辑器版本是 `6000.2.10f1`，渲染管线是 URP，XR 侧依赖 Meta XR SDK 和 OpenXR。
 - 主运行场景是 `Assets/Scenes/QuestMain.unity`。`AndroidMain*.unity`、`QuestMain 1.unity`、`QuestMain-curvedmesh.unity`、`Assets/_Recovery/*.unity` 更像备份或实验场景，除非用户明确要求，不要把它们当成主改动目标。
 - 这个工作区不是标准 Git 仓库，目录里存在 `.plastic`。不要假设 `git` 可用，也不要把 Git 工作流写进解决方案。
-
+--不需要额外的生成.md文档，直接输出内容即可
 ## 首先阅读这些路径
 - `Packages/manifest.json`
 - `ProjectSettings/ProjectVersion.txt`

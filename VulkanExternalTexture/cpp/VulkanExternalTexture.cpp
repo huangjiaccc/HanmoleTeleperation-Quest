@@ -29,7 +29,7 @@
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-#define QUEST_VULKANEXT_BUILD_TAG "ycbcr_manual_yuv_v6"
+#define QUEST_VULKANEXT_BUILD_TAG "ycbcr_manual_yuv_v9_copy_only"
 
 #ifndef UNITY_INTERFACE_EXPORT
 #define UNITY_INTERFACE_EXPORT
@@ -1961,8 +1961,6 @@ namespace
                      static_cast<unsigned long long>(formatProps.externalFormat));
             }
 
-            // Directly recreating Unity's texture binding inside the import event is not stable on this Quest runtime.
-            // Stay on the copy path here so decoded frames remain visible on the target material.
             if (true)
             {
                 if (texture.unityTexturePtr == nullptr)
